@@ -49,7 +49,7 @@ type SessionEditHistoryRow = {
   new_content: string | null;
 };
 
-export const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+export const TASK_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 
 export const AI_TASK_STATUSES = ['pending', 'assigned', 'discarded'] as const;

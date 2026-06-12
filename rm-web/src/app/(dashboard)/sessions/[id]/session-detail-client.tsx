@@ -2,9 +2,19 @@
 
 // SessionDetailClient — /sessions/[id]
 //
-// Shows: meeting number prominently in header, parent link (if follow-up),
-// list of child follow-ups (if main), action buttons by role/state, content,
-// edit history. Adds a Participants card to display registered users.
+// Layout (top → bottom):
+//   1. Back link
+//   2. Meeting number + type badge
+//   3. Title + bilingual subtitle + action buttons
+//      (Generate MoM with AI — admin/super_admin + draft only)
+//   4. Parent reference (if follow-up)
+//   5. Status + metadata bar
+//   6. Attendees (MoH + Visitors)
+//   7. Participants card
+//   8. AI Task Triage (only when pending_ai_tasks exists)
+//   9. Content sections (MoM, Notes, Decisions, Action Items)
+//  10. Follow-ups list (if main)
+//  11. Edit History
 
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -28,6 +38,7 @@ import {
   Hash,
   GitBranch,
   ArrowUpRight,
+  Sparkles,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/auth-provider';
@@ -40,6 +51,8 @@ import { LockDialog } from '@/components/sessions/lock-dialog';
 import { ReEnableEditDialog } from '@/components/sessions/re-enable-edit-dialog';
 import { EditLockedDialog } from '@/components/sessions/edit-locked-dialog';
 import { EditHistoryPanel } from '@/components/sessions/edit-history-panel';
+import { AiMomGenerator } from '@/components/sessions/ai-mom-generator';
+import { AiTaskTriage } from '@/components/sessions/ai-task-triage';
 import type { Session, MeetingType } from '@/types/session';
 import { cn } from '@/lib/utils';
 
@@ -49,7 +62,8 @@ type ModalState =
   | { kind: 'lock' }
   | { kind: 're-enable' }
   | { kind: 'edit-locked' }
-  | { kind: 'delete' };
+  | { kind: 'delete' }
+  | { kind: 'ai-mom' };
 
 export function SessionDetailClient({ id }: { id: string }) {
   const { user } = useAuth();
@@ -118,6 +132,8 @@ export function SessionDetailClient({ id }: { id: string }) {
   const canEditLocked =
     session.status === 'locked' && session.canBeEditedAfterLock && (isCreator || isAdminOrSuper);
   const canDelete = isAdminOrSuper;
+  // AI MoM generator: admin/super_admin only, draft sessions only (Q4)
+  const canGenerateAiMom = session.status === 'draft' && isAdminOrSuper;
 
   function handleExportWord() {
     const html = sessionToWordHtml(session!, language);
@@ -127,7 +143,6 @@ export function SessionDetailClient({ id }: { id: string }) {
 
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
-      {/* Back link */}
       <Link
         href="/sessions"
         className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 mb-4"
@@ -136,7 +151,6 @@ export function SessionDetailClient({ id }: { id: string }) {
         {language === 'ar' ? 'كل الجلسات' : 'All sessions'}
       </Link>
 
-      {/* Meeting number + type badge */}
       <div className="flex items-center gap-3 mb-2">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 font-mono text-sm font-semibold">
           <Hash className="h-3.5 w-3.5" />
@@ -145,7 +159,6 @@ export function SessionDetailClient({ id }: { id: string }) {
         <TypeBadge type={session.meetingType} language={language} />
       </div>
 
-      {/* Title + actions */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-semibold text-slate-900">
@@ -156,6 +169,16 @@ export function SessionDetailClient({ id }: { id: string }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canGenerateAiMom && (
+            <Button
+              size="sm"
+              onClick={() => setModal({ kind: 'ai-mom' })}
+              className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              <Sparkles className="h-4 w-4" />
+              {language === 'ar' ? 'توليد بالذكاء الاصطناعي' : 'Generate with AI'}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handleExportWord} className="gap-2">
             <Download className="h-4 w-4" />
             {language === 'ar' ? 'تحميل Word' : 'Download .doc'}
@@ -207,12 +230,10 @@ export function SessionDetailClient({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Parent reference (only for follow-ups) */}
       {session.meetingType === 'followup' && session.parentSessionId && (
         <ParentReference parentId={session.parentSessionId} language={language} />
       )}
 
-      {/* Status + metadata bar */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 mb-4">
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <StatusPill status={session.status} language={language} />
@@ -243,7 +264,6 @@ export function SessionDetailClient({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Attendees */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <AttendeeList
           title={language === 'ar' ? 'حضور وزارة الصحة' : 'MoH Attendees'}
@@ -260,12 +280,13 @@ export function SessionDetailClient({ id }: { id: string }) {
         />
       </div>
 
-      {/* Participants */}
       {session.participantIds.length > 0 && (
         <ParticipantsCard ids={session.participantIds} language={language} />
       )}
 
-      {/* Content sections */}
+      {/* AI Task Triage — only renders if there are pending AI tasks */}
+      {isAdminOrSuper && <AiTaskTriage session={session} />}
+
       <ContentBlock
         icon={<FileText className="h-4 w-4" />}
         title={language === 'ar' ? 'محضر الاجتماع' : 'Minutes of Meeting'}
@@ -295,12 +316,10 @@ export function SessionDetailClient({ id }: { id: string }) {
         isRTL={isRTL}
       />
 
-      {/* Follow-ups list (only for main meetings) */}
       {session.meetingType === 'main' && (
         <FollowupsList parentId={session.id} language={language} />
       )}
 
-      {/* Edit history */}
       <div className="mt-6">
         <EditHistoryPanel sessionId={session.id} />
       </div>
@@ -355,6 +374,17 @@ export function SessionDetailClient({ id }: { id: string }) {
           }}
         />
       )}
+      {modal.kind === 'ai-mom' && (
+        <AiMomGenerator
+          session={session}
+          onClose={() => setModal({ kind: 'none' })}
+          onAccepted={() => {
+            queryClient.invalidateQueries({ queryKey: ['session', id] });
+            queryClient.invalidateQueries({ queryKey: ['session-edit-history', id] });
+            setModal({ kind: 'none' });
+          }}
+        />
+      )}
       {modal.kind === 'delete' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-5">
@@ -403,7 +433,7 @@ export function SessionDetailClient({ id }: { id: string }) {
 }
 
 // =============================================================================
-// Type badge + status pill
+// Subcomponents
 // =============================================================================
 
 function TypeBadge({ type, language }: { type: MeetingType; language: 'en' | 'ar' }) {
@@ -445,10 +475,6 @@ function StatusPill({
   );
 }
 
-// =============================================================================
-// Parent reference (follow-up → main)
-// =============================================================================
-
 function ParentReference({
   parentId,
   language,
@@ -489,10 +515,6 @@ function ParentReference({
     </Link>
   );
 }
-
-// =============================================================================
-// Followups list (children of a main)
-// =============================================================================
 
 function FollowupsList({ parentId, language }: { parentId: string; language: 'en' | 'ar' }) {
   const { data: followups = [], isLoading } = useQuery({
@@ -571,10 +593,6 @@ function FollowupsList({ parentId, language }: { parentId: string; language: 'en
     </div>
   );
 }
-
-// =============================================================================
-// Attendees / participants / content blocks (unchanged from previous version)
-// =============================================================================
 
 function AttendeeList({
   title,
