@@ -62,7 +62,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'investors', href: '/investors', icon: Building2, labelEn: 'Investors', labelAr: 'المستثمرون', enabled: true },
   { id: 'tasks', href: '/tasks', icon: ClipboardList, labelEn: 'Tasks', labelAr: 'المهام', enabled: false },
   { id: 'challenges', href: '/challenges', icon: Trophy, labelEn: 'Challenges', labelAr: 'التحديات', enabled: false },
-  { id: 'sessions', href: '/sessions', icon: CalendarClock, labelEn: 'Sessions', labelAr: 'الجلسات', enabled: false },
+  { id: 'sessions', href: '/sessions', icon: CalendarClock, labelEn: 'Sessions', labelAr: 'الجلسات', enabled: true },
   { id: 'vacations', href: '/vacations', icon: PlaneTakeoff, labelEn: 'Vacations', labelAr: 'الإجازات', enabled: false },
   { id: 'approvals', href: '/approvals', icon: CheckCircle2, labelEn: 'Approvals', labelAr: 'الموافقات', enabled: false },
   { id: 'reports', href: '/reports', icon: BarChart3, labelEn: 'Reports', labelAr: 'التقارير', enabled: false },
