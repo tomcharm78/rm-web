@@ -277,7 +277,8 @@ export type InvestorFormInput = {
 export function formInputToDbInsert(
   input: InvestorFormInput,
   organizationId: string,
-  createdById: string | null
+  createdById: string | null,
+  sourceSystem: string | null = null
 ): InvestorInsert {
   return {
     organization_id: organizationId,
@@ -289,7 +290,7 @@ export function formInputToDbInsert(
     city: input.city.trim(),
     website: input.website?.trim() || null,
     cr_number: input.crNumber?.trim() || null,
-    portfolio_size_usd: input.portfolioSizeUsd ?? null,
+    portfolio_size_usd: input.portfolioSizeUsd ?? 0,
     preferred_investment_region: input.preferredInvestmentRegion?.trim() || null,
     representative_name: input.representativeName.trim(),
     representative_name_ar: input.representativeNameAr.trim(),
@@ -301,6 +302,7 @@ export function formInputToDbInsert(
     fixed_number: input.fixedNumber?.trim() || null,
     fixed_country_code: input.fixedCountryCode?.trim() || null,
     created_by_id: createdById,
+    source_system: sourceSystem,
   };
 }
 
@@ -314,7 +316,7 @@ export function formInputToDbUpdate(input: InvestorFormInput): InvestorUpdate {
     city: input.city.trim(),
     website: input.website?.trim() || null,
     cr_number: input.crNumber?.trim() || null,
-    portfolio_size_usd: input.portfolioSizeUsd ?? null,
+    portfolio_size_usd: input.portfolioSizeUsd ?? 0,
     preferred_investment_region: input.preferredInvestmentRegion?.trim() || null,
     representative_name: input.representativeName.trim(),
     representative_name_ar: input.representativeNameAr.trim(),

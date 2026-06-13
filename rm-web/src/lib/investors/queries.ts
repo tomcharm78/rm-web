@@ -84,7 +84,7 @@ export async function getInvestor(id: string): Promise<Investor | null> {
 // =============================================================================
 
 // Returns the freshly inserted investor (with server-assigned id, timestamps).
-export async function createInvestor(input: InvestorFormInput): Promise<Investor> {
+export async function createInvestor(input: InvestorFormInput, sourceSystem?: string): Promise<Investor> {
   const supabase = createClient();
 
   // Get the caller's auth + org context — needed for FK + audit columns.
@@ -99,7 +99,7 @@ export async function createInvestor(input: InvestorFormInput): Promise<Investor
     .single();
   if (userErr || !appUser) throw new Error('user_lookup_failed');
 
-  const insertRow = formInputToDbInsert(input, appUser.organization_id, authUser.id);
+  const insertRow = formInputToDbInsert(input, appUser.organization_id, authUser.id, sourceSystem ?? null);
 
   const { data, error } = await supabase
     .from('investors')

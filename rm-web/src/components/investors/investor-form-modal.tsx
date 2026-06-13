@@ -71,6 +71,7 @@ const EMPTY_FORM: InvestorFormInput = {
 export function InvestorFormModal({ mode, investor, onClose, onSaved }: Props) {
   const { language, isRTL } = useLanguage();
   const [showScanner, setShowScanner] = useState(false);
+  const [cameFromScan, setCameFromScan] = useState(false);
 
   // Detect mobile (for scanner button visibility)
   const isMobile = useMemo(() => {
@@ -144,6 +145,7 @@ export function InvestorFormModal({ mode, investor, onClose, onSaved }: Props) {
       nationality: d.nationality ?? f.nationality,
       crNumber: d.crNumber ?? f.crNumber,
     }));
+    setCameFromScan(true);
     setShowScanner(false);
   }
 
@@ -181,14 +183,14 @@ export function InvestorFormModal({ mode, investor, onClose, onSaved }: Props) {
   const saveMutation = useMutation({
     mutationFn: async () =>
       mode === 'create'
-        ? createInvestor(form)
+        ? createInvestor(form, cameFromScan ? 'mobile_scan' : undefined)
         : updateInvestor(investor!.id, form),
     onSuccess: (inv) => onSaved(inv),
   });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
+    if (!cameFromScan && !validate()) return;
     saveMutation.mutate();
   }
 
