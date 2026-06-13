@@ -60,7 +60,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'home', href: '/', icon: LayoutDashboard, labelEn: 'Dashboard', labelAr: 'الرئيسية', enabled: true },
   { id: 'investors', href: '/investors', icon: Building2, labelEn: 'Investors', labelAr: 'المستثمرون', enabled: true },
-  { id: 'tasks', href: '/tasks', icon: ClipboardList, labelEn: 'Tasks', labelAr: 'المهام', enabled: false },
+  { id: 'tasks', href: '/tasks', icon: ClipboardList, labelEn: 'Tasks', labelAr: 'المهام', enabled: true },
   { id: 'challenges', href: '/challenges', icon: Trophy, labelEn: 'Challenges', labelAr: 'التحديات', enabled: false },
   { id: 'sessions', href: '/sessions', icon: CalendarClock, labelEn: 'Sessions', labelAr: 'الجلسات', enabled: true },
   { id: 'vacations', href: '/vacations', icon: PlaneTakeoff, labelEn: 'Vacations', labelAr: 'الإجازات', enabled: false },
