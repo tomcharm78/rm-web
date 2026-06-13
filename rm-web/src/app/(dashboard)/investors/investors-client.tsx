@@ -227,6 +227,11 @@ export function InvestorsPageClient() {
                       <div className="text-xs text-slate-500 mt-0.5" dir={language === 'ar' ? 'ltr' : 'auto'}>
                         {language === 'ar' ? inv.companyName : inv.companyNameAr}
                       </div>
+                      {inv.sourceSystem === 'mobile_scan' && (
+                        <span className="inline-flex items-center mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">
+                          {language === 'ar' ? 'مسح بطاقة' : 'Mobile Scan'}
+                        </span>
+                      )}
                       {inv.website && (
                         <a
                           href={inv.website}

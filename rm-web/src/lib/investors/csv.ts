@@ -37,6 +37,7 @@ export function investorsToCsv(investors: Investor[], language: CsvLanguage = 'e
         'الهاتف الثابت',
         'تاريخ الإنشاء',
         'تاريخ التعديل',
+        'المصدر',
       ]
     : [
         'Company Name (EN)',
@@ -58,6 +59,7 @@ export function investorsToCsv(investors: Investor[], language: CsvLanguage = 'e
         'Fixed Line',
         'Created At',
         'Updated At',
+        'Source',
       ];
 
   const rows = investors.map((inv) => [
@@ -80,6 +82,7 @@ export function investorsToCsv(investors: Investor[], language: CsvLanguage = 'e
     inv.fixedCountryCode && inv.fixedNumber ? `${inv.fixedCountryCode} ${inv.fixedNumber}` : '',
     inv.createdAt.toISOString(),
     inv.updatedAt.toISOString(),
+    inv.sourceSystem === 'mobile_scan' ? (language === 'ar' ? 'مسح بطاقة' : 'Mobile Scan') : (language === 'ar' ? 'يدوي' : 'Manual'),
   ]);
 
   const lines = [headers, ...rows].map((cells) =>

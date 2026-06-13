@@ -190,7 +190,8 @@ export function InvestorFormModal({ mode, investor, onClose, onSaved }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!cameFromScan && !validate()) return;
+    const allowPartialSave = cameFromScan || (mode === 'edit' && investor?.sourceSystem === 'mobile_scan');
+    if (!allowPartialSave && !validate()) return;
     saveMutation.mutate();
   }
 
@@ -230,6 +231,13 @@ export function InvestorFormModal({ mode, investor, onClose, onSaved }: Props) {
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-5 max-h-[80vh] overflow-y-auto">
+          {(cameFromScan || (mode === 'edit' && investor?.sourceSystem === 'mobile_scan')) && (
+            <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              {language === 'ar'
+                ? 'تم الإدخال عبر مسح البطاقة — لا حقول إلزامية. احفظ الآن وأكمل البيانات لاحقاً.'
+                : 'Created via mobile scan — no required fields. Save now and complete later.'}
+            </div>
+          )}
           {/* Company section */}
           <Section title={language === 'ar' ? 'بيانات الشركة' : 'Company'}>
             <Grid>
