@@ -75,6 +75,27 @@ export function AssignTaskDialog({ session, task, onClose, onAssigned }: Props) 
         .single();
       if (!me) throw new Error('user_lookup_failed');
 
+      // Tasks are domain-scoped (tasks.domain_id is NOT NULL), but sessions
+      // carry no domain. Derive the task's domain from the assignee's
+      // user_domains membership; fall back to the creator's domain.
+      const { data: assigneeDom } = await supabase
+        .from('user_domains')
+        .select('domain_id')
+        .eq('user_id', assigneeId)
+        .limit(1)
+        .maybeSingle();
+      let domainId = (assigneeDom as { domain_id: string } | null)?.domain_id;
+      if (!domainId) {
+        const { data: creatorDom } = await supabase
+          .from('user_domains')
+          .select('domain_id')
+          .eq('user_id', authUser.id)
+          .limit(1)
+          .maybeSingle();
+        domainId = (creatorDom as { domain_id: string } | null)?.domain_id;
+      }
+      if (!domainId) throw new Error('no_domain_for_user');
+
       // 1. Insert into tasks table.
       // The tasks table schema (from 0001_schema.sql) has these columns we care
       // about: id, organization_id, title, title_ar, description, description_ar,
@@ -84,6 +105,7 @@ export function AssignTaskDialog({ session, task, onClose, onAssigned }: Props) 
         .from('tasks')
         .insert({
           organization_id: me.organization_id,
+          domain_id: domainId,
           title: title.trim(),
           title_ar: titleAr.trim(),
           description: description.trim() || null,
