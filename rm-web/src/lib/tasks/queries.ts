@@ -537,3 +537,26 @@ export async function rejectClosure(taskId: string, reason: string): Promise<voi
     .eq('id', taskId);
   if (error) throw new Error(error.message);
 }
+
+// Domains a given user belongs to (for deriving a task's domain from its assignee).
+export async function listUserDomains(userId: string): Promise<DomainLite[]> {
+  const supabase = createClient();
+  const { data: ud, error: udErr } = await supabase
+    .from('user_domains')
+    .select('domain_id')
+    .eq('user_id', userId);
+  if (udErr) throw new Error(udErr.message);
+  const ids = (ud as { domain_id: string }[]).map((x) => x.domain_id);
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase
+    .from('domains')
+    .select('id, name, name_ar')
+    .in('id', ids)
+    .order('name', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data as { id: string; name: string; name_ar: string }[]).map((d) => ({
+    id: d.id,
+    name: d.name,
+    nameAr: d.name_ar,
+  }));
+}

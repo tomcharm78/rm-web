@@ -6,11 +6,12 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { ClipboardList, Search, AlertTriangle, CalendarClock, Loader2, ShieldAlert } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ClipboardList, Search, AlertTriangle, CalendarClock, Loader2, ShieldAlert, Plus } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Input } from '@/components/ui/input';
+import { TaskFormModal } from '@/components/tasks/task-form-modal';
 import { listTasks, listTaskDomains, listAssignableUsers, type TaskFilters } from '@/lib/tasks/queries';
 import {
   STATUS_LABELS,
@@ -48,6 +49,12 @@ export function TasksClient() {
   const [domainId, setDomainId] = useState<string | 'all'>('all');
   const [assigneeId, setAssigneeId] = useState<string | 'all'>('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const queryClient = useQueryClient();
+  const canCreate =
+    user?.role === 'admin' ||
+    user?.role === 'super_admin' ||
+    (user?.permissions ?? []).includes('create_tasks');
 
   const isManager = user?.role === 'admin' || user?.role === 'super_admin';
 
@@ -156,8 +163,17 @@ export function TasksClient() {
           <AlertTriangle className="h-4 w-4" />
           {ar ? 'المتأخرة فقط' : 'Overdue only'}
         </button>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="h-9 rounded-md bg-indigo-600 px-3 text-sm text-white inline-flex items-center gap-1.5 hover:bg-indigo-700 ms-auto"
+          >
+            <Plus className="h-4 w-4" />
+            {ar ? 'إضافة مهمة' : 'Add Task'}
+          </button>
+        )}
       </div>
-
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         {tasksQ.isLoading ? (
           <div className="p-8 text-center text-slate-500"><Loader2 className="h-5 w-5 animate-spin inline" /></div>
@@ -230,6 +246,12 @@ export function TasksClient() {
           </div>
         )}
       </div>
+
+      <TaskFormModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ['tasks'] })}
+      />
     </div>
   );
 }
