@@ -17,6 +17,8 @@ import {
 } from '@/lib/tasks/queries';
 import { getSession } from '@/lib/sessions/queries';
 import { TaskMilestones } from '@/components/tasks/task-milestones';
+import { TaskAcceptance } from '@/components/tasks/task-acceptance';
+import { TaskActions } from '@/components/tasks/task-actions';
 import {
   STATUS_LABELS,
   PRIORITY_LABELS,
@@ -168,6 +170,8 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
           )}
         </div>
       )}
+
+      <TaskAcceptance task={task} />
 
       <TaskMilestones task={task} />
 

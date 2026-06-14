@@ -328,11 +328,40 @@ export async function updateTaskCompletion(taskId: string, percentage: number): 
 // Direct reassign (admin/super). Audit trigger logs old/new assignee.
 export async function reassignTask(taskId: string, newAssigneeId: string): Promise<void> {
   const supabase = createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) throw new Error('not_authenticated');
+
+  const { data: cur, error: curErr } = await supabase
+    .from('tasks')
+    .select('status')
+    .eq('id', taskId)
+    .single();
+  if (curErr || !cur) throw new Error('task_lookup_failed');
+  const fromStatus = (cur as { status: TaskStatus }).status;
+
   const { error } = await supabase
     .from('tasks')
-    .update({ assigned_to_id: newAssigneeId })
+    .update({
+      assigned_to_id: newAssigneeId,
+      status: 'pending',
+      accepted_at: null,
+      declined_at: null,
+      decline_reason: null,
+      declined_by: null,
+    })
     .eq('id', taskId);
   if (error) throw new Error(error.message);
+
+  const { error: histErr } = await supabase.from('task_status_history').insert({
+    task_id: taskId,
+    from_status: fromStatus,
+    to_status: 'pending',
+    changed_by_id: authUser.id,
+    change_reason: 'Task reassigned',
+  });
+  if (histErr) throw new Error(`Reassigned, but history failed: ${histErr.message}`);
 }
 
 export async function cancelTask(
@@ -559,4 +588,75 @@ export async function listUserDomains(userId: string): Promise<DomainLite[]> {
     name: d.name,
     nameAr: d.name_ar,
   }));
+}
+// ====================== Acceptance ======================
+// Assignee accepts (pending -> in_progress) or declines (stays pending, flagged
+// for an admin to reassign). accepted_at also feeds per-person throughput later.
+
+export async function acceptTask(taskId: string): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) throw new Error('not_authenticated');
+
+  const { data: cur, error: curErr } = await supabase
+    .from('tasks')
+    .select('status, assigned_to_id')
+    .eq('id', taskId)
+    .single();
+  if (curErr || !cur) throw new Error('task_lookup_failed');
+  const row = cur as { status: TaskStatus; assigned_to_id: string };
+  if (row.assigned_to_id !== authUser.id) throw new Error('not_your_task');
+  if (row.status !== 'pending') throw new Error('not_pending');
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      status: 'in_progress',
+      accepted_at: new Date().toISOString(),
+      declined_at: null,
+      decline_reason: null,
+      declined_by: null,
+    })
+    .eq('id', taskId);
+  if (error) throw new Error(error.message);
+
+  const { error: histErr } = await supabase.from('task_status_history').insert({
+    task_id: taskId,
+    from_status: 'pending',
+    to_status: 'in_progress',
+    changed_by_id: authUser.id,
+    change_reason: 'Task accepted',
+  });
+  if (histErr) throw new Error(`Accepted, but history failed: ${histErr.message}`);
+}
+
+export async function declineTask(taskId: string, reason: string): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) throw new Error('not_authenticated');
+  if (!reason.trim()) throw new Error('decline_reason_required');
+
+  const { data: cur, error: curErr } = await supabase
+    .from('tasks')
+    .select('status, assigned_to_id')
+    .eq('id', taskId)
+    .single();
+  if (curErr || !cur) throw new Error('task_lookup_failed');
+  const row = cur as { status: TaskStatus; assigned_to_id: string };
+  if (row.assigned_to_id !== authUser.id) throw new Error('not_your_task');
+  if (row.status !== 'pending') throw new Error('not_pending');
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      declined_at: new Date().toISOString(),
+      decline_reason: reason.trim(),
+      declined_by: authUser.id,
+    })
+    .eq('id', taskId);
+  if (error) throw new Error(error.message);
 }

@@ -44,7 +44,7 @@ export function TasksClient() {
   const ar = language === 'ar';
 
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<TaskStatus | 'all'>('all');
+  const [status, setStatus] = useState<TaskStatus | 'all' | 'declined'>('all');
   const [priority, setPriority] = useState<TaskPriority | 'all'>('all');
   const [domainId, setDomainId] = useState<string | 'all'>('all');
   const [assigneeId, setAssigneeId] = useState<string | 'all'>('all');
@@ -58,7 +58,8 @@ export function TasksClient() {
 
   const isManager = user?.role === 'admin' || user?.role === 'super_admin';
 
-  const filters: TaskFilters = { search, status, priority, domainId, assigneeId, overdueOnly };
+  const serverStatus = status === 'declined' ? 'all' : status;
+  const filters: TaskFilters = { search, status: serverStatus, priority, domainId, assigneeId, overdueOnly };
 
   const tasksQ = useQuery({
     queryKey: ['tasks', filters, user?.id, user?.role],
@@ -68,7 +69,12 @@ export function TasksClient() {
   const domainsQ = useQuery({ queryKey: ['task-domains'], queryFn: listTaskDomains });
   const usersQ = useQuery({ queryKey: ['assignable-all'], queryFn: () => listAssignableUsers() });
 
-  const tasks = tasksQ.data ?? [];
+  const tasks = useMemo(() => {
+    const list = tasksQ.data ?? [];
+    if (status === 'declined') return list.filter((t) => !!t.declinedAt);
+    if (status === 'pending') return list.filter((t) => !t.declinedAt);
+    return list;
+  }, [tasksQ.data, status]);
   const domains = domainsQ.data ?? [];
   const users = usersQ.data ?? [];
 
@@ -124,11 +130,12 @@ export function TasksClient() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select value={status} onChange={(e) => setStatus(e.target.value as TaskStatus | 'all')} className={fieldCls}>
+        <select value={status} onChange={(e) => setStatus(e.target.value as TaskStatus | 'all' | 'declined')} className={fieldCls}>
           <option value="all">{ar ? 'كل الحالات' : 'All statuses'}</option>
-          {TASK_STATUSES.map((s) => (
+          {TASK_STATUSES.filter((s) => s !== 'blocked').map((s) => (
             <option key={s} value={s}>{STATUS_LABELS[s][ar ? 'ar' : 'en']}</option>
           ))}
+          <option value="declined">{ar ? 'مرفوضة' : 'Declined'}</option>
         </select>
         <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority | 'all')} className={fieldCls}>
           <option value="all">{ar ? 'كل الأولويات' : 'All priorities'}</option>
@@ -198,7 +205,7 @@ export function TasksClient() {
                 {tasks.map((t) => {
                   const over = isOverdue(t);
                   return (
-                    <tr key={t.id} className="hover:bg-slate-50">
+                    <tr key={t.id} className={'hover:bg-slate-50' + (t.declinedAt ? ' bg-red-50' : '')}>
                       <td className="px-4 py-3">
                         <Link href={`/tasks/${t.id}`} className="block">
                           <div className="font-medium text-slate-900 truncate max-w-xs">
@@ -215,9 +222,15 @@ export function TasksClient() {
                       </td>
                       <td className="px-4 py-3 text-slate-700">{assigneeName(t.assignedToId)}</td>
                       <td className="px-4 py-3">
-                        <span className={'inline-block rounded-full px-2 py-0.5 text-xs ' + STATUS_BADGE[t.status]}>
-                          {STATUS_LABELS[t.status][ar ? 'ar' : 'en']}
-                        </span>
+                        {t.declinedAt ? (
+                          <span className="inline-block rounded-full px-2 py-0.5 text-xs bg-red-100 text-red-700">
+                            {ar ? 'مرفوضة' : 'Declined'}
+                          </span>
+                        ) : (
+                          <span className={'inline-block rounded-full px-2 py-0.5 text-xs ' + STATUS_BADGE[t.status]}>
+                            {STATUS_LABELS[t.status][ar ? 'ar' : 'en']}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={'inline-block rounded px-2 py-0.5 text-xs ' + PRIORITY_BADGE[t.priority]}>

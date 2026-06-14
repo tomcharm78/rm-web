@@ -48,6 +48,10 @@ export type TaskRow = {
   closure_requested_by: string | null;
   closure_rejected_at: string | null;
   closure_rejected_reason: string | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  decline_reason: string | null;
+  declined_by: string | null;
   cancel_reason: string | null;
   cancelled_at: string | null;
   source_session_id: string | null;
@@ -84,6 +88,10 @@ export type Task = {
   closureRequestedBy: string | null;
   closureRejectedAt: string | null;
   closureRejectedReason: string | null;
+  acceptedAt: string | null;
+  declinedAt: string | null;
+  declineReason: string | null;
+  declinedBy: string | null;
   cancelReason: string | null;
   cancelledAt: string | null;
   sourceSessionId: string | null;
@@ -120,6 +128,10 @@ export function dbTaskToTask(r: TaskRow): Task {
     closureRequestedBy: r.closure_requested_by,
     closureRejectedAt: r.closure_rejected_at,
     closureRejectedReason: r.closure_rejected_reason,
+    acceptedAt: r.accepted_at,
+    declinedAt: r.declined_at,
+    declineReason: r.decline_reason,
+    declinedBy: r.declined_by,
     cancelReason: r.cancel_reason,
     cancelledAt: r.cancelled_at,
     sourceSessionId: r.source_session_id,
