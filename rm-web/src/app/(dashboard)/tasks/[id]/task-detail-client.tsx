@@ -171,6 +171,7 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
         </div>
       )}
 
+      <TaskActions task={task} />
       <TaskAcceptance task={task} />
 
       <TaskMilestones task={task} />
