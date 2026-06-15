@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, UserCog, Trash2, X } from 'lucide-react';
+import { Loader2, UserCog, Pencil, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Button } from '@/components/ui/button';
 import { reassignTask, softDeleteTask, listAssignableUsers } from '@/lib/tasks/queries';
+import { TaskEditModal } from '@/components/tasks/task-edit-modal';
 import type { Task } from '@/types/task';
 
 export function TaskActions({ task }: { task: Task }) {
@@ -23,6 +24,7 @@ export function TaskActions({ task }: { task: Task }) {
   const [showReassign, setShowReassign] = useState(false);
   const [newAssignee, setNewAssignee] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const assignableQ = useQuery({
     queryKey: ['assignable-users', 'reassign'],
@@ -35,6 +37,7 @@ export function TaskActions({ task }: { task: Task }) {
     onSuccess: () => {
       setShowReassign(false);
       setNewAssignee('');
+      qc.invalidateQueries({ queryKey: ['task-milestones', task.id] });
       qc.invalidateQueries({ queryKey: ['task', task.id] });
       qc.invalidateQueries({ queryKey: ['task-history', task.id] });
       qc.invalidateQueries({ queryKey: ['tasks'] });
@@ -57,6 +60,11 @@ export function TaskActions({ task }: { task: Task }) {
         <UserCog className="h-4 w-4" />
         {ar ? 'إعادة تعيين' : 'Reassign'}
       </Button>
+      <Button variant="outline" onClick={() => setShowEdit(true)} className="gap-2">
+        <Pencil className="h-4 w-4" />
+        {ar ? 'تعديل' : 'Edit'}
+      </Button>
+
       {isSuper && (
         <Button
           variant="outline"
@@ -133,6 +141,9 @@ export function TaskActions({ task }: { task: Task }) {
             </div>
           </div>
         </div>
+      )}
+    {showEdit && (
+        <TaskEditModal task={task} open onClose={() => setShowEdit(false)} />
       )}
     </div>
   );

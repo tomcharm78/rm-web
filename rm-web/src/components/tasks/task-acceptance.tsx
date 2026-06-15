@@ -24,6 +24,7 @@ export function TaskAcceptance({ task }: { task: Task }) {
   const [reason, setReason] = useState('');
 
   const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['task-milestones', task.id] });
     qc.invalidateQueries({ queryKey: ['task', task.id] });
     qc.invalidateQueries({ queryKey: ['task-history', task.id] });
     qc.invalidateQueries({ queryKey: ['tasks'] });
