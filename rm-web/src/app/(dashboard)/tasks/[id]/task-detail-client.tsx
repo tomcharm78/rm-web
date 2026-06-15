@@ -7,7 +7,8 @@
 import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CalendarClock, AlertTriangle, Loader2, Clock } from 'lucide-react';
+import { ArrowLeft, CalendarClock, AlertTriangle, Loader2, Clock, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 import { useLanguage } from '@/providers/language-provider';
 import {
   getTask,
@@ -19,6 +20,7 @@ import { getSession } from '@/lib/sessions/queries';
 import { TaskMilestones } from '@/components/tasks/task-milestones';
 import { TaskAcceptance } from '@/components/tasks/task-acceptance';
 import { TaskActions } from '@/components/tasks/task-actions';
+import { TaskTransfer } from '@/components/tasks/task-transfer';
 import {
   STATUS_LABELS,
   PRIORITY_LABELS,
@@ -61,6 +63,7 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
   });
   const canOpenSession = !!sessionAccessQ.data;
   const history = historyQ.data ?? [];
+  const [historyOpen, setHistoryOpen] = useState(false);
   const users = usersQ.data ?? [];
   const domains = domainsQ.data ?? [];
 
@@ -199,31 +202,46 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
         </Link>
       )}
 
+      <TaskTransfer task={task} />
       <div className="bg-white rounded-lg border border-slate-200 p-5">
-        <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setHistoryOpen((v) => !v)}
+          className="flex w-full items-center gap-2 text-sm font-semibold"
+        >
           <Clock className="h-4 w-4 text-slate-400" />
           {ar ? 'سجل الحالة' : 'Status history'}
-        </h2>
-        {historyQ.isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-        ) : history.length === 0 ? (
-          <p className="text-sm text-slate-400">{ar ? 'لا توجد تغييرات بعد.' : 'No changes yet.'}</p>
-        ) : (
-          <ul className="space-y-3">
-            {history.map((h) => (
-              <li key={h.id} className="text-sm border-s-2 border-slate-100 ps-3">
-                <div className="text-slate-700">
-                  <span className="text-slate-400">{STATUS_LABELS[h.fromStatus][ar ? 'ar' : 'en']}</span>
-                  {' → '}
-                  <span className="font-medium">{STATUS_LABELS[h.toStatus][ar ? 'ar' : 'en']}</span>
-                </div>
-                <div className="text-xs text-slate-400 mt-0.5">
-                  {personName(h.changedById)} · {fmtDateTime(h.changedAt)}
-                </div>
-                {h.changeReason && <div className="text-xs text-slate-500 mt-0.5">{h.changeReason}</div>}
-              </li>
-            ))}
-          </ul>
+          {history.length > 0 && (
+            <span className="text-xs font-normal text-slate-400">({history.length})</span>
+          )}
+          <ChevronDown
+            className={`h-4 w-4 text-slate-400 transition-transform ms-auto ${historyOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+        {historyOpen && (
+          <div className="mt-3">
+            {historyQ.isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+            ) : history.length === 0 ? (
+              <p className="text-sm text-slate-400">{ar ? 'لا توجد تغييرات بعد.' : 'No changes yet.'}</p>
+            ) : (
+              <ul className="space-y-3">
+                {history.map((h) => (
+                  <li key={h.id} className="text-sm border-s-2 border-slate-100 ps-3">
+                    <div className="text-slate-700">
+                      <span className="text-slate-400">{STATUS_LABELS[h.fromStatus][ar ? 'ar' : 'en']}</span>
+                      {' → '}
+                      <span className="font-medium">{STATUS_LABELS[h.toStatus][ar ? 'ar' : 'en']}</span>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      {personName(h.changedById)} · {fmtDateTime(h.changedAt)}
+                    </div>
+                    {h.changeReason && <div className="text-xs text-slate-500 mt-0.5">{h.changeReason}</div>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
     </div>

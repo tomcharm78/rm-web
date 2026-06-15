@@ -311,3 +311,46 @@ export function milestoneProgress(items: TaskMilestone[]): number {
   const sum = items.reduce((acc, m) => acc + milestoneOneProgress(m), 0);
   return Math.round(sum / items.length);
 }
+// ===================== Transfer requests =====================
+export type TransferStatus = 'requested' | 'approved' | 'rejected' | 'executed';
+
+export type TransferRequestRow = {
+  id: string;
+  task_id: string | null;
+  requester_id: string;
+  target_user_id: string;
+  reason: string;
+  status: TransferStatus;
+  approved_by_id: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  organization_id: string;
+};
+
+export type TransferRequest = {
+  id: string;
+  taskId: string | null;
+  requesterId: string;
+  targetUserId: string;
+  reason: string;
+  status: TransferStatus;
+  approvedById: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+};
+
+export function dbTransferToTransfer(r: TransferRequestRow): TransferRequest {
+  return {
+    id: r.id,
+    taskId: r.task_id,
+    requesterId: r.requester_id,
+    targetUserId: r.target_user_id,
+    reason: r.reason,
+    status: r.status,
+    approvedById: r.approved_by_id,
+    rejectionReason: r.rejection_reason,
+    createdAt: r.created_at,
+  };
+}

@@ -23,6 +23,9 @@ import {
   dbSubtaskToSubtask,
   type MilestoneSubtask,
   type MilestoneSubtaskRow,
+  dbTransferToTransfer,
+  type TransferRequest,
+  type TransferRequestRow,
 } from '@/types/task';
 import type { UserRole } from '@/types';
 
@@ -755,5 +758,113 @@ export async function setMilestoneDueDate(milestoneId: string, dueDate: string |
     .from('task_milestones')
     .update({ due_date: dueDate || null, updated_at: new Date().toISOString() })
     .eq('id', milestoneId);
+  if (error) throw new Error(error.message);
+}
+// ===================== Transfer requests =====================
+// An assignee requests handing their task to someone else; an eligible approver
+// (admin for rm/arm requests; super only for admin requests) approves → reassign,
+// or rejects with a reason. Reject leaves the task untouched. Requester can cancel.
+
+export async function getTaskTransfer(taskId: string): Promise<TransferRequest | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('transfer_requests')
+    .select('*')
+    .eq('task_id', taskId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? dbTransferToTransfer(data as TransferRequestRow) : null;
+}
+
+export async function requestTransfer(taskId: string, targetUserId: string, reason: string): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) throw new Error('not_authenticated');
+  if (!reason.trim()) throw new Error('transfer_reason_required');
+  if (!targetUserId) throw new Error('target_required');
+  const { error } = await supabase.from('transfer_requests').insert({
+    task_id: taskId,
+    requester_id: authUser.id,
+    target_user_id: targetUserId,
+    reason: reason.trim(),
+    status: 'requested',
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function approveTransfer(transferId: string, taskId: string, targetUserId: string): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) throw new Error('not_authenticated');
+
+  const { error: reqErr } = await supabase
+    .from('transfer_requests')
+    .update({ status: 'approved', approved_by_id: authUser.id, updated_at: new Date().toISOString() })
+    .eq('id', transferId);
+  if (reqErr) throw new Error(reqErr.message);
+
+  const { data: cur, error: curErr } = await supabase
+    .from('tasks')
+    .select('status')
+    .eq('id', taskId)
+    .single();
+  if (curErr || !cur) throw new Error('task_lookup_failed');
+  const fromStatus = (cur as { status: TaskStatus }).status;
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      assigned_to_id: targetUserId,
+      status: 'pending',
+      accepted_at: null,
+      declined_at: null,
+      decline_reason: null,
+      declined_by: null,
+    })
+    .eq('id', taskId);
+  if (error) throw new Error(error.message);
+
+  const { error: histErr } = await supabase.from('task_status_history').insert({
+    task_id: taskId,
+    from_status: fromStatus,
+    to_status: 'pending',
+    changed_by_id: authUser.id,
+    change_reason: 'Transfer approved',
+  });
+  if (histErr) throw new Error(`Transferred, but history failed: ${histErr.message}`);
+}
+
+export async function rejectTransfer(transferId: string, reason: string): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+  if (!authUser) throw new Error('not_authenticated');
+  if (!reason.trim()) throw new Error('reject_reason_required');
+  const { error } = await supabase
+    .from('transfer_requests')
+    .update({
+      status: 'rejected',
+      approved_by_id: authUser.id,
+      rejection_reason: reason.trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', transferId);
+  if (error) throw new Error(error.message);
+}
+
+export async function cancelTransfer(transferId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('transfer_requests')
+    .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', transferId);
   if (error) throw new Error(error.message);
 }
