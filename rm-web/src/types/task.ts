@@ -231,9 +231,32 @@ export type TaskMilestoneRow = {
   title_ar: string;
   is_done: boolean;
   sort_order: number;
+  assigned_to_id: string | null;
+  due_date: string | null;
   organization_id: string;
   created_at: string;
   updated_at: string;
+};
+
+export type MilestoneSubtaskRow = {
+  id: string;
+  milestone_id: string;
+  title: string;
+  title_ar: string;
+  is_done: boolean;
+  sort_order: number;
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MilestoneSubtask = {
+  id: string;
+  milestoneId: string;
+  title: string;
+  titleAr: string;
+  isDone: boolean;
+  sortOrder: number;
 };
 
 export type TaskMilestone = {
@@ -243,7 +266,21 @@ export type TaskMilestone = {
   titleAr: string;
   isDone: boolean;
   sortOrder: number;
+  assignedToId: string | null;
+  dueDate: string | null;
+  subtasks: MilestoneSubtask[];
 };
+
+export function dbSubtaskToSubtask(r: MilestoneSubtaskRow): MilestoneSubtask {
+  return {
+    id: r.id,
+    milestoneId: r.milestone_id,
+    title: r.title,
+    titleAr: r.title_ar,
+    isDone: r.is_done,
+    sortOrder: r.sort_order,
+  };
+}
 
 export function dbMilestoneToMilestone(r: TaskMilestoneRow): TaskMilestone {
   return {
@@ -253,12 +290,24 @@ export function dbMilestoneToMilestone(r: TaskMilestoneRow): TaskMilestone {
     titleAr: r.title_ar,
     isDone: r.is_done,
     sortOrder: r.sort_order,
+    assignedToId: r.assigned_to_id,
+    dueDate: r.due_date,
+    subtasks: [],
   };
 }
 
-// % progress computed from the milestone checklist (checked / total). 0 if none.
+// % for a single milestone: from its sub-tasks (done/total) if any, else its own done flag.
+export function milestoneOneProgress(m: TaskMilestone): number {
+  if (m.subtasks.length > 0) {
+    const done = m.subtasks.filter((s) => s.isDone).length;
+    return Math.round((done / m.subtasks.length) * 100);
+  }
+  return m.isDone ? 100 : 0;
+}
+
+// Task % = simple average of each milestone's progress. 0 if no milestones.
 export function milestoneProgress(items: TaskMilestone[]): number {
   if (items.length === 0) return 0;
-  const done = items.filter((m) => m.isDone).length;
-  return Math.round((done / items.length) * 100);
+  const sum = items.reduce((acc, m) => acc + milestoneOneProgress(m), 0);
+  return Math.round(sum / items.length);
 }

@@ -20,6 +20,9 @@ import {
   type TaskStatusHistoryRow,
   type TaskMilestone,
   type TaskMilestoneRow,
+  dbSubtaskToSubtask,
+  type MilestoneSubtask,
+  type MilestoneSubtaskRow,
 } from '@/types/task';
 import type { UserRole } from '@/types';
 
@@ -423,10 +426,24 @@ async function recomputeTaskCompletion(
   supabase: ReturnType<typeof createClient>,
   taskId: string
 ): Promise<void> {
-  const { data } = await supabase.from('task_milestones').select('is_done').eq('task_id', taskId);
-  const items = (data ?? []) as { is_done: boolean }[];
-  const pct =
-    items.length === 0 ? 0 : Math.round((items.filter((m) => m.is_done).length / items.length) * 100);
+  const { data: ms } = await supabase.from('task_milestones').select('id, is_done').eq('task_id', taskId);
+  const milestones = (ms ?? []) as { id: string; is_done: boolean }[];
+  if (milestones.length === 0) {
+    await supabase.from('tasks').update({ completion_percentage: 0 }).eq('id', taskId);
+    return;
+  }
+  const ids = milestones.map((m) => m.id);
+  const { data: subs } = await supabase
+    .from('milestone_subtasks')
+    .select('milestone_id, is_done')
+    .in('milestone_id', ids);
+  const subRows = (subs ?? []) as { milestone_id: string; is_done: boolean }[];
+  const perMilestone = milestones.map((m) => {
+    const ss = subRows.filter((s) => s.milestone_id === m.id);
+    if (ss.length === 0) return m.is_done ? 100 : 0;
+    return Math.round((ss.filter((s) => s.is_done).length / ss.length) * 100);
+  });
+  const pct = Math.round(perMilestone.reduce((a, b) => a + b, 0) / milestones.length);
   await supabase.from('tasks').update({ completion_percentage: pct }).eq('id', taskId);
 }
 
@@ -439,19 +456,51 @@ export async function listTaskMilestones(taskId: string): Promise<TaskMilestone[
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
-  return (data as TaskMilestoneRow[]).map(dbMilestoneToMilestone);
+  const milestones = (data as TaskMilestoneRow[]).map(dbMilestoneToMilestone);
+  if (milestones.length === 0) return milestones;
+
+  const ids = milestones.map((m) => m.id);
+  const { data: subs, error: subErr } = await supabase
+    .from('milestone_subtasks')
+    .select('*')
+    .in('milestone_id', ids)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (subErr) throw new Error(subErr.message);
+  const byMilestone = new Map<string, MilestoneSubtask[]>();
+  (subs as MilestoneSubtaskRow[]).forEach((r) => {
+    const s = dbSubtaskToSubtask(r);
+    const arr = byMilestone.get(s.milestoneId) ?? [];
+    arr.push(s);
+    byMilestone.set(s.milestoneId, arr);
+  });
+  return milestones.map((m) => ({ ...m, subtasks: byMilestone.get(m.id) ?? [] }));
 }
 
-export async function addTaskMilestone(taskId: string, title: string, titleAr: string): Promise<TaskMilestone> {
+export async function addTaskMilestone(
+  taskId: string,
+  title: string,
+  titleAr: string,
+  dueDate?: string | null
+): Promise<TaskMilestone> {
   const supabase = createClient();
   if (!title.trim()) throw new Error('milestone_title_required');
+  const { data: t } = await supabase.from('tasks').select('assigned_to_id').eq('id', taskId).single();
+  const ownerId = (t as { assigned_to_id: string } | null)?.assigned_to_id ?? null;
   const { count } = await supabase
     .from('task_milestones')
     .select('id', { count: 'exact', head: true })
     .eq('task_id', taskId);
   const { data, error } = await supabase
     .from('task_milestones')
-    .insert({ task_id: taskId, title: title.trim(), title_ar: titleAr.trim(), sort_order: count ?? 0 })
+    .insert({
+      task_id: taskId,
+      title: title.trim(),
+      title_ar: titleAr.trim(),
+      sort_order: count ?? 0,
+      assigned_to_id: ownerId,
+      due_date: dueDate || null,
+    })
     .select('*')
     .single();
   if (error) throw new Error(error.message);
@@ -658,5 +707,53 @@ export async function declineTask(taskId: string, reason: string): Promise<void>
       declined_by: authUser.id,
     })
     .eq('id', taskId);
+  if (error) throw new Error(error.message);
+}
+// ===================== Milestone sub-tasks =====================
+// Sub-tasks under a milestone. A milestone's % = done/total of its sub-tasks;
+// the task % is the average across milestones (see recomputeTaskCompletion).
+
+export async function addMilestoneSubtask(
+  milestoneId: string,
+  taskId: string,
+  title: string,
+  titleAr: string
+): Promise<void> {
+  const supabase = createClient();
+  if (!title.trim()) throw new Error('subtask_title_required');
+  const { count } = await supabase
+    .from('milestone_subtasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('milestone_id', milestoneId);
+  const { error } = await supabase
+    .from('milestone_subtasks')
+    .insert({ milestone_id: milestoneId, title: title.trim(), title_ar: titleAr.trim(), sort_order: count ?? 0 });
+  if (error) throw new Error(error.message);
+  await recomputeTaskCompletion(supabase, taskId);
+}
+
+export async function toggleMilestoneSubtask(subtaskId: string, taskId: string, isDone: boolean): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('milestone_subtasks')
+    .update({ is_done: isDone, updated_at: new Date().toISOString() })
+    .eq('id', subtaskId);
+  if (error) throw new Error(error.message);
+  await recomputeTaskCompletion(supabase, taskId);
+}
+
+export async function deleteMilestoneSubtask(subtaskId: string, taskId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from('milestone_subtasks').delete().eq('id', subtaskId);
+  if (error) throw new Error(error.message);
+  await recomputeTaskCompletion(supabase, taskId);
+}
+
+export async function setMilestoneDueDate(milestoneId: string, dueDate: string | null): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('task_milestones')
+    .update({ due_date: dueDate || null, updated_at: new Date().toISOString() })
+    .eq('id', milestoneId);
   if (error) throw new Error(error.message);
 }

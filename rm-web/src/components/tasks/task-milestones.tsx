@@ -1,37 +1,28 @@
 'use client';
 
-// Milestones checklist + closure approval, embedded on the task detail page.
-// Assignee: add / check / delete milestones (progress = checked/total) and
-// submit a closing statement (requires >=1 milestone). Admin: approve (-> Closed)
-// or reject-with-reason (back to the assignee). Display labels say "Milestones".
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2,
-  Plus,
-  Trash2,
-  Check,
-  ClipboardCheck,
-  Send,
-  ThumbsUp,
-  ThumbsDown,
-  AlertTriangle,
+  Loader2, Plus, Trash2, Check, ClipboardCheck, Send, ThumbsUp, ThumbsDown,
+  AlertTriangle, ChevronRight, ChevronDown, CalendarClock, User,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  listTaskMilestones,
-  addTaskMilestone,
-  toggleTaskMilestone,
-  deleteTaskMilestone,
-  submitClosure,
-  approveClosure,
-  rejectClosure,
+  listTaskMilestones, addTaskMilestone, toggleTaskMilestone, deleteTaskMilestone,
+  addMilestoneSubtask, toggleMilestoneSubtask, deleteMilestoneSubtask, setMilestoneDueDate,
+  submitClosure, approveClosure, rejectClosure, listUserNames,
 } from '@/lib/tasks/queries';
-import { milestoneProgress, type Task } from '@/types/task';
+import { milestoneProgress, milestoneOneProgress, type Task, type TaskMilestone } from '@/types/task';
+
+function fmtDate(iso: string | null, ar: boolean): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(ar ? 'ar' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+}
 
 export function TaskMilestones({ task }: { task: Task }) {
   const { user } = useAuth();
@@ -47,6 +38,7 @@ export function TaskMilestones({ task }: { task: Task }) {
 
   const [newM, setNewM] = useState('');
   const [newMAr, setNewMAr] = useState('');
+  const [newDue, setNewDue] = useState('');
   const [statement, setStatement] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
@@ -54,6 +46,13 @@ export function TaskMilestones({ task }: { task: Task }) {
   const msQ = useQuery({ queryKey: ['task-milestones', taskId], queryFn: () => listTaskMilestones(taskId) });
   const milestones = msQ.data ?? [];
   const progress = milestoneProgress(milestones);
+
+  const namesQ = useQuery({ queryKey: ['user-names'], queryFn: listUserNames });
+  const nameOf = (id: string | null) => {
+    if (!id) return ar ? 'غير معيّن' : 'Unassigned';
+    const u = (namesQ.data ?? []).find((x) => x.id === id);
+    return u ? (ar ? u.nameAr || u.name : u.name) : '—';
+  };
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['task-milestones', taskId] });
@@ -63,34 +62,19 @@ export function TaskMilestones({ task }: { task: Task }) {
   };
 
   const addM = useMutation({
-    mutationFn: () => addTaskMilestone(taskId, newM, newMAr),
-    onSuccess: () => {
-      setNewM('');
-      setNewMAr('');
-      refresh();
-    },
+    mutationFn: () => addTaskMilestone(taskId, newM, newMAr, newDue || null),
+    onSuccess: () => { setNewM(''); setNewMAr(''); setNewDue(''); refresh(); },
   });
-  const toggleM = useMutation({
-    mutationFn: (v: { id: string; done: boolean }) => toggleTaskMilestone(v.id, taskId, v.done),
-    onSuccess: refresh,
-  });
-  const delM = useMutation({ mutationFn: (id: string) => deleteTaskMilestone(id, taskId), onSuccess: refresh });
   const submit = useMutation({
     mutationFn: () => submitClosure(taskId, statement),
-    onSuccess: () => {
-      setStatement('');
-      refresh();
-    },
+    onSuccess: () => { setStatement(''); refresh(); },
   });
   const approve = useMutation({ mutationFn: () => approveClosure(taskId), onSuccess: refresh });
   const reject = useMutation({
     mutationFn: () => rejectClosure(taskId, rejectReason),
-    onSuccess: () => {
-      setRejectReason('');
-      setShowReject(false);
-      refresh();
-    },
+    onSuccess: () => { setRejectReason(''); setShowReject(false); refresh(); },
   });
+
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-5 mb-4">
       <div className="flex items-center justify-between mb-3">
@@ -113,67 +97,34 @@ export function TaskMilestones({ task }: { task: Task }) {
           {isAssignee && !isClosed ? (ar ? ' أضف مراحل لتتبع التقدم.' : ' Add milestones to track progress.') : ''}
         </p>
       ) : (
-        <ul className="space-y-1.5 mb-3">
+        <ul className="space-y-2 mb-3">
           {milestones.map((m) => (
-            <li key={m.id} className="flex items-center gap-2 text-sm">
-              <button
-                type="button"
-                disabled={!isAssignee || isClosed || toggleM.isPending}
-                onClick={() => toggleM.mutate({ id: m.id, done: !m.isDone })}
-                className={
-                  'h-5 w-5 flex-shrink-0 rounded border inline-flex items-center justify-center ' +
-                  (m.isDone ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white') +
-                  (!isAssignee || isClosed ? ' opacity-60 cursor-default' : '')
-                }
-              >
-                {m.isDone && <Check className="h-3.5 w-3.5" />}
-              </button>
-              <span className={'flex-1 ' + (m.isDone ? 'text-slate-400 line-through' : 'text-slate-700')}>
-                {ar ? m.titleAr || m.title : m.title}
-              </span>
-              {isAssignee && !isClosed && (
-                <button
-                  type="button"
-                  disabled={delM.isPending}
-                  onClick={() => delM.mutate(m.id)}
-                  className="text-slate-300 hover:text-red-500"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </li>
+            <MilestoneRow
+              key={m.id}
+              m={m}
+              taskId={taskId}
+              isAssignee={isAssignee}
+              isClosed={isClosed}
+              ar={ar}
+              nameOf={nameOf}
+              onChanged={refresh}
+            />
           ))}
         </ul>
       )}
 
       {isAssignee && !isClosed && (
         <div className="flex flex-col sm:flex-row gap-2 mb-1">
-          <Input
-            dir="ltr"
-            placeholder={ar ? 'مرحلة جديدة (EN)' : 'New milestone (EN)'}
-            value={newM}
-            onChange={(e) => setNewM(e.target.value)}
-            disabled={addM.isPending}
-          />
-          <Input
-            dir="rtl"
-            placeholder={ar ? 'مرحلة جديدة (AR)' : 'New milestone (AR)'}
-            value={newMAr}
-            onChange={(e) => setNewMAr(e.target.value)}
-            disabled={addM.isPending}
-          />
-          <Button
-            onClick={() => addM.mutate()}
-            disabled={!newM.trim() || addM.isPending}
-            className="gap-1 bg-indigo-600 hover:bg-indigo-700 flex-shrink-0"
-          >
+          <Input dir="ltr" placeholder={ar ? 'مرحلة جديدة (EN)' : 'New milestone (EN)'} value={newM} onChange={(e) => setNewM(e.target.value)} />
+          <Input dir="rtl" placeholder={ar ? 'مرحلة جديدة (AR)' : 'New milestone (AR)'} value={newMAr} onChange={(e) => setNewMAr(e.target.value)} />
+          <Input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} className="sm:w-40" />
+          <Button onClick={() => addM.mutate()} disabled={!newM.trim() || addM.isPending} className="gap-1 bg-indigo-600 hover:bg-indigo-700 flex-shrink-0">
             {addM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             {ar ? 'إضافة' : 'Add'}
           </Button>
         </div>
       )}
       {addM.isError && <p className="text-xs text-red-600">{(addM.error as Error)?.message}</p>}
-
       <div className="border-t border-slate-100 mt-4 pt-4">
         {task.closureRejectedReason && !awaitingApproval && !isClosed && (
           <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900 mb-3">
@@ -226,11 +177,7 @@ export function TaskMilestones({ task }: { task: Task }) {
           <div className="mt-1">
             {!showReject ? (
               <div className="flex gap-2">
-                <Button
-                  onClick={() => approve.mutate()}
-                  disabled={approve.isPending}
-                  className="gap-2 bg-green-600 hover:bg-green-700"
-                >
+                <Button onClick={() => approve.mutate()} disabled={approve.isPending} className="gap-2 bg-green-600 hover:bg-green-700">
                   {approve.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4" />}
                   {ar ? 'موافقة وإغلاق' : 'Approve & close'}
                 </Button>
@@ -250,17 +197,11 @@ export function TaskMilestones({ task }: { task: Task }) {
                   placeholder={ar ? 'وضّح سبب الإعادة…' : 'Explain why it is sent back…'}
                 />
                 <div className="flex gap-2 mt-2">
-                  <Button
-                    onClick={() => reject.mutate()}
-                    disabled={!rejectReason.trim() || reject.isPending}
-                    className="gap-2 bg-red-600 hover:bg-red-700"
-                  >
+                  <Button onClick={() => reject.mutate()} disabled={!rejectReason.trim() || reject.isPending} className="gap-2 bg-red-600 hover:bg-red-700">
                     {reject.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                     {ar ? 'إرسال الرفض' : 'Send rejection'}
                   </Button>
-                  <Button variant="outline" onClick={() => setShowReject(false)}>
-                    {ar ? 'إلغاء' : 'Cancel'}
-                  </Button>
+                  <Button variant="outline" onClick={() => setShowReject(false)}>{ar ? 'إلغاء' : 'Cancel'}</Button>
                 </div>
                 {reject.isError && <p className="text-xs text-red-600 mt-1">{(reject.error as Error)?.message}</p>}
               </div>
@@ -270,5 +211,130 @@ export function TaskMilestones({ task }: { task: Task }) {
         )}
       </div>
     </div>
+  );
+}
+function MilestoneRow({
+  m, taskId, isAssignee, isClosed, ar, nameOf, onChanged,
+}: {
+  m: TaskMilestone;
+  taskId: string;
+  isAssignee: boolean;
+  isClosed: boolean;
+  ar: boolean;
+  nameOf: (id: string | null) => string;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [subEn, setSubEn] = useState('');
+  const [subAr, setSubAr] = useState('');
+  const pct = milestoneOneProgress(m);
+  const hasSubs = m.subtasks.length > 0;
+
+  const toggleMs = useMutation({ mutationFn: (v: boolean) => toggleTaskMilestone(m.id, taskId, v), onSuccess: onChanged });
+  const delMs = useMutation({ mutationFn: () => deleteTaskMilestone(m.id, taskId), onSuccess: onChanged });
+  const addSub = useMutation({ mutationFn: () => addMilestoneSubtask(m.id, taskId, subEn, subAr), onSuccess: () => { setSubEn(''); setSubAr(''); onChanged(); } });
+  const toggleSub = useMutation({ mutationFn: (v: { id: string; done: boolean }) => toggleMilestoneSubtask(v.id, taskId, v.done), onSuccess: onChanged });
+  const delSub = useMutation({ mutationFn: (id: string) => deleteMilestoneSubtask(id, taskId), onSuccess: onChanged });
+  const dueMut = useMutation({ mutationFn: (d: string) => setMilestoneDueDate(m.id, d || null), onSuccess: onChanged });
+
+  return (
+    <li className="rounded-md border border-slate-200">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button type="button" onClick={() => setOpen((o) => !o)} className="text-slate-400 hover:text-slate-600">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
+        {!hasSubs ? (
+          <button
+            type="button"
+            disabled={!isAssignee || isClosed || toggleMs.isPending}
+            onClick={() => toggleMs.mutate(!m.isDone)}
+            className={'h-5 w-5 flex-shrink-0 rounded border inline-flex items-center justify-center ' + (m.isDone ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white') + (!isAssignee || isClosed ? ' opacity-60 cursor-default' : '')}
+          >
+            {m.isDone && <Check className="h-3.5 w-3.5" />}
+          </button>
+        ) : (
+          <span className="text-xs text-slate-400 w-9 text-center flex-shrink-0">{pct}%</span>
+        )}
+        <span className={'flex-1 text-sm ' + (pct === 100 ? 'text-slate-400 line-through' : 'text-slate-700')}>
+          {ar ? m.titleAr || m.title : m.title}
+        </span>
+        <span className="hidden sm:flex items-center gap-1 text-xs text-slate-400">
+          <User className="h-3 w-3" />
+          {nameOf(m.assignedToId)}
+        </span>
+        <span className="hidden sm:flex items-center gap-1 text-xs text-slate-400">
+          <CalendarClock className="h-3 w-3" />
+          {fmtDate(m.dueDate, ar)}
+        </span>
+        {isAssignee && !isClosed && (
+          <button type="button" onClick={() => delMs.mutate()} disabled={delMs.isPending} className="text-slate-300 hover:text-red-500">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {hasSubs && (
+        <div className="px-3 pb-2">
+          <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-full bg-indigo-500" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {open && (
+        <div className="border-t border-slate-100 px-3 py-2 space-y-2 bg-slate-50/60">
+          {isAssignee && !isClosed && (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <CalendarClock className="h-3.5 w-3.5" />
+              <span>{ar ? 'تاريخ الاستحقاق' : 'Due'}</span>
+              <input
+                type="date"
+                defaultValue={m.dueDate ? m.dueDate.slice(0, 10) : ''}
+                onChange={(e) => dueMut.mutate(e.target.value)}
+                className="rounded border border-slate-200 px-2 py-1 text-xs"
+              />
+            </div>
+          )}
+
+          {m.subtasks.length === 0 ? (
+            <p className="text-xs text-slate-400">{ar ? 'لا توجد مهام فرعية.' : 'No sub-tasks yet.'}</p>
+          ) : (
+            <ul className="space-y-1">
+              {m.subtasks.map((s) => (
+                <li key={s.id} className="flex items-center gap-2 text-sm">
+                  <button
+                    type="button"
+                    disabled={!isAssignee || isClosed}
+                    onClick={() => toggleSub.mutate({ id: s.id, done: !s.isDone })}
+                    className={'h-4 w-4 flex-shrink-0 rounded border inline-flex items-center justify-center ' + (s.isDone ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white') + (!isAssignee || isClosed ? ' opacity-60 cursor-default' : '')}
+                  >
+                    {s.isDone && <Check className="h-3 w-3" />}
+                  </button>
+                  <span className={'flex-1 ' + (s.isDone ? 'text-slate-400 line-through' : 'text-slate-600')}>
+                    {ar ? s.titleAr || s.title : s.title}
+                  </span>
+                  {isAssignee && !isClosed && (
+                    <button type="button" onClick={() => delSub.mutate(s.id)} className="text-slate-300 hover:text-red-500">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {isAssignee && !isClosed && (
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input dir="ltr" placeholder={ar ? 'مهمة فرعية (EN)' : 'Sub-task (EN)'} value={subEn} onChange={(e) => setSubEn(e.target.value)} className="h-8 text-sm" />
+              <Input dir="rtl" placeholder={ar ? 'مهمة فرعية (AR)' : 'Sub-task (AR)'} value={subAr} onChange={(e) => setSubAr(e.target.value)} className="h-8 text-sm" />
+              <Button onClick={() => addSub.mutate()} disabled={!subEn.trim() || addSub.isPending} className="h-8 gap-1 bg-indigo-600 hover:bg-indigo-700 flex-shrink-0">
+                {addSub.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {ar ? 'إضافة' : 'Add'}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
