@@ -178,6 +178,10 @@ export function AuthProvider({
     },
     onSuccess: (appUser) => {
       setUser(appUser);
+      queryClient.clear();
+      // Hard navigation so middleware re-runs against the fresh session:
+      // applies the force_password_change redirect and drops the prior user's cache.
+      window.location.href = '/';
     },
     onError: (err: Error) => {
       setLoginError(err.message);

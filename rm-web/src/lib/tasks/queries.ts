@@ -188,7 +188,7 @@ export async function listAssignableUsers(domainId?: string): Promise<Assignable
     .select('id, name, name_ar, role, avatar')
     .eq('is_active', true)
     .is('deleted_at', null)
-    .in('role', ['rm', 'arm', 'admin']);
+    .in('role', ['rm', 'arm', 'admin', 'super_admin']);
   if (ids) q = q.in('id', ids);
 
   const { data, error } = await q.order('name', { ascending: true });
@@ -724,13 +724,25 @@ export async function addMilestoneSubtask(
 ): Promise<void> {
   const supabase = createClient();
   if (!title.trim()) throw new Error('subtask_title_required');
+  // default the subtask owner to the milestone's owner
+  const { data: ms } = await supabase
+    .from('task_milestones')
+    .select('assigned_to_id')
+    .eq('id', milestoneId)
+    .single();
   const { count } = await supabase
     .from('milestone_subtasks')
     .select('id', { count: 'exact', head: true })
     .eq('milestone_id', milestoneId);
   const { error } = await supabase
     .from('milestone_subtasks')
-    .insert({ milestone_id: milestoneId, title: title.trim(), title_ar: titleAr.trim(), sort_order: count ?? 0 });
+    .insert({
+      milestone_id: milestoneId,
+      title: title.trim(),
+      title_ar: titleAr.trim(),
+      sort_order: count ?? 0,
+      assigned_to_id: ms?.assigned_to_id ?? null,
+    });
   if (error) throw new Error(error.message);
   await recomputeTaskCompletion(supabase, taskId);
 }
@@ -868,3 +880,50 @@ export async function cancelTransfer(transferId: string): Promise<void> {
     .eq('id', transferId);
   if (error) throw new Error(error.message);
 }
+// ---- subtask ownership + support (scope C) ----
+
+export async function setSubtaskOwner(subtaskId: string, taskId: string, newOwnerId: string): Promise<void> {
+  const supabase = createClient();
+  // resolve the new owner's role + the task assignee's role to decide if this is a SUPPORT request
+  const { data: owner } = await supabase.from('users').select('role').eq('id', newOwnerId).single();
+  const { data: task } = await supabase.from('tasks').select('assigned_to_id').eq('id', taskId).single();
+  let assigneeRole: string | null = null;
+  if (task?.assigned_to_id) {
+    const { data: assignee } = await supabase.from('users').select('role').eq('id', task.assigned_to_id).single();
+    assigneeRole = assignee?.role ?? null;
+  }
+  const ownerRole = owner?.role ?? null;
+  const isSupport =
+    (ownerRole === 'admin' || ownerRole === 'super_admin') &&
+    (assigneeRole === 'rm' || assigneeRole === 'arm');
+  const { error } = await supabase
+    .from('milestone_subtasks')
+    .update({
+      assigned_to_id: newOwnerId,
+      support_status: isSupport ? 'requested' : null,
+      support_decline_reason: null,
+    })
+    .eq('id', subtaskId);
+  if (error) throw new Error(error.message);
+}
+
+export async function acceptSubtaskSupport(subtaskId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('milestone_subtasks')
+    .update({ support_status: 'accepted', support_decline_reason: null })
+    .eq('id', subtaskId);
+  if (error) throw new Error(error.message);
+}
+
+export async function declineSubtaskSupport(subtaskId: string, reason: string): Promise<void> {
+  const supabase = createClient();
+  if (!reason.trim()) throw new Error('decline_reason_required');
+  const { error } = await supabase
+    .from('milestone_subtasks')
+    .update({ support_status: 'declined', support_decline_reason: reason.trim() })
+    .eq('id', subtaskId);
+  if (error) throw new Error(error.message);
+}
+// ---- subtask ownership + support (scope C) ----
+

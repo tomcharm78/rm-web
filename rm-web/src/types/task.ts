@@ -238,6 +238,7 @@ export type TaskMilestoneRow = {
   updated_at: string;
 };
 
+export type SubtaskSupportStatus = 'requested' | 'accepted' | 'declined';
 export type MilestoneSubtaskRow = {
   id: string;
   milestone_id: string;
@@ -245,6 +246,9 @@ export type MilestoneSubtaskRow = {
   title_ar: string;
   is_done: boolean;
   sort_order: number;
+  assigned_to_id: string | null;
+  support_status: SubtaskSupportStatus | null;
+  support_decline_reason: string | null;
   organization_id: string;
   created_at: string;
   updated_at: string;
@@ -257,6 +261,9 @@ export type MilestoneSubtask = {
   titleAr: string;
   isDone: boolean;
   sortOrder: number;
+  assignedToId: string | null;
+  supportStatus: SubtaskSupportStatus | null;
+  supportDeclineReason: string | null;
 };
 
 export type TaskMilestone = {
@@ -279,6 +286,9 @@ export function dbSubtaskToSubtask(r: MilestoneSubtaskRow): MilestoneSubtask {
     titleAr: r.title_ar,
     isDone: r.is_done,
     sortOrder: r.sort_order,
+    assignedToId: r.assigned_to_id,
+    supportStatus: r.support_status,
+    supportDeclineReason: r.support_decline_reason,
   };
 }
 

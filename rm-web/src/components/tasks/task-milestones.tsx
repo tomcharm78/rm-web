@@ -14,6 +14,7 @@ import {
   listTaskMilestones, addTaskMilestone, toggleTaskMilestone, deleteTaskMilestone,
   addMilestoneSubtask, toggleMilestoneSubtask, deleteMilestoneSubtask, setMilestoneDueDate,
   submitClosure, approveClosure, rejectClosure, listUserNames,
+  setSubtaskOwner, acceptSubtaskSupport, declineSubtaskSupport,
 } from '@/lib/tasks/queries';
 import { milestoneProgress, milestoneOneProgress, type Task, type TaskMilestone } from '@/types/task';
 
@@ -104,9 +105,12 @@ export function TaskMilestones({ task }: { task: Task }) {
               m={m}
               taskId={taskId}
               isAssignee={isAssignee}
+              isSuper={user?.role === 'super_admin'}
               isClosed={isClosed}
               ar={ar}
               nameOf={nameOf}
+              users={namesQ.data ?? []}
+              currentUserId={user?.id ?? null}
               onChanged={refresh}
             />
           ))}
@@ -214,21 +218,27 @@ export function TaskMilestones({ task }: { task: Task }) {
   );
 }
 function MilestoneRow({
-  m, taskId, isAssignee, isClosed, ar, nameOf, onChanged,
+  m, taskId, isAssignee, isSuper, isClosed, ar, nameOf, users, currentUserId, onChanged,
 }: {
   m: TaskMilestone;
   taskId: string;
   isAssignee: boolean;
+  isSuper: boolean;
   isClosed: boolean;
   ar: boolean;
   nameOf: (id: string | null) => string;
+  users: { id: string; name: string; nameAr: string }[];
+  currentUserId: string | null;
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [subEn, setSubEn] = useState('');
   const [subAr, setSubAr] = useState('');
+  const [declineFor, setDeclineFor] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
   const pct = milestoneOneProgress(m);
   const hasSubs = m.subtasks.length > 0;
+  const canManageSubs = (isAssignee || isSuper) && !isClosed;
 
   const toggleMs = useMutation({ mutationFn: (v: boolean) => toggleTaskMilestone(m.id, taskId, v), onSuccess: onChanged });
   const delMs = useMutation({ mutationFn: () => deleteTaskMilestone(m.id, taskId), onSuccess: onChanged });
@@ -236,6 +246,9 @@ function MilestoneRow({
   const toggleSub = useMutation({ mutationFn: (v: { id: string; done: boolean }) => toggleMilestoneSubtask(v.id, taskId, v.done), onSuccess: onChanged });
   const delSub = useMutation({ mutationFn: (id: string) => deleteMilestoneSubtask(id, taskId), onSuccess: onChanged });
   const dueMut = useMutation({ mutationFn: (d: string) => setMilestoneDueDate(m.id, d || null), onSuccess: onChanged });
+  const ownerMut = useMutation({ mutationFn: (v: { id: string; ownerId: string }) => setSubtaskOwner(v.id, taskId, v.ownerId), onSuccess: onChanged });
+  const acceptMut = useMutation({ mutationFn: (id: string) => acceptSubtaskSupport(id), onSuccess: onChanged });
+  const declineMut = useMutation({ mutationFn: (v: { id: string; reason: string }) => declineSubtaskSupport(v.id, v.reason), onSuccess: () => { setDeclineFor(null); setDeclineReason(''); onChanged(); } });
 
   return (
     <li className="rounded-md border border-slate-200">
@@ -280,7 +293,6 @@ function MilestoneRow({
           </div>
         </div>
       )}
-
       {open && (
         <div className="border-t border-slate-100 px-3 py-2 space-y-2 bg-slate-50/60">
           {isAssignee && !isClosed && (
@@ -299,31 +311,114 @@ function MilestoneRow({
           {m.subtasks.length === 0 ? (
             <p className="text-xs text-slate-400">{ar ? 'لا توجد مهام فرعية.' : 'No sub-tasks yet.'}</p>
           ) : (
-            <ul className="space-y-1">
-              {m.subtasks.map((s) => (
-                <li key={s.id} className="flex items-center gap-2 text-sm">
-                  <button
-                    type="button"
-                    disabled={!isAssignee || isClosed}
-                    onClick={() => toggleSub.mutate({ id: s.id, done: !s.isDone })}
-                    className={'h-4 w-4 flex-shrink-0 rounded border inline-flex items-center justify-center ' + (s.isDone ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white') + (!isAssignee || isClosed ? ' opacity-60 cursor-default' : '')}
-                  >
-                    {s.isDone && <Check className="h-3 w-3" />}
-                  </button>
-                  <span className={'flex-1 ' + (s.isDone ? 'text-slate-400 line-through' : 'text-slate-600')}>
-                    {ar ? s.titleAr || s.title : s.title}
-                  </span>
-                  {isAssignee && !isClosed && (
-                    <button type="button" onClick={() => delSub.mutate(s.id)} className="text-slate-300 hover:text-red-500">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </li>
-              ))}
+            <ul className="space-y-1.5">
+              {m.subtasks.map((s) => {
+                const amOwner = currentUserId != null && currentUserId === s.assignedToId;
+                const isRequested = s.supportStatus === 'requested';
+                const isAccepted = s.supportStatus === 'accepted';
+                const isDeclined = s.supportStatus === 'declined';
+                const canTick = !isClosed && (s.supportStatus === null || isAccepted) && (isAssignee || isSuper || amOwner);
+                return (
+                  <li key={s.id} className="rounded border border-slate-100 bg-white px-2 py-1.5">
+                    <div className="flex items-center gap-2 text-sm">
+                      <button
+                        type="button"
+                        disabled={!canTick}
+                        onClick={() => toggleSub.mutate({ id: s.id, done: !s.isDone })}
+                        className={'h-4 w-4 flex-shrink-0 rounded border inline-flex items-center justify-center ' + (s.isDone ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white') + (!canTick ? ' opacity-60 cursor-default' : '')}
+                      >
+                        {s.isDone && <Check className="h-3 w-3" />}
+                      </button>
+                      <span className={'flex-1 ' + (s.isDone ? 'text-slate-400 line-through' : 'text-slate-600')}>
+                        {ar ? s.titleAr || s.title : s.title}
+                      </span>
+                      {isRequested && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex-shrink-0">
+                          {ar ? 'دعم' : 'SUPPORT'}
+                        </span>
+                      )}
+                      {isAccepted && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex-shrink-0">
+                          {ar ? 'دعم ✓' : 'SUPPORT ✓'}
+                        </span>
+                      )}
+                      {isDeclined && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700 flex-shrink-0">
+                          {ar ? 'دعم ✕' : 'SUPPORT ✕'}
+                        </span>
+                      )}
+                      <span className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400 flex-shrink-0">
+                        <User className="h-3 w-3" />
+                        {nameOf(s.assignedToId)}
+                      </span>
+                      {canManageSubs && (
+                        <button type="button" onClick={() => delSub.mutate(s.id)} className="text-slate-300 hover:text-red-500 flex-shrink-0">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {canManageSubs && (
+                      <div className="mt-1 flex items-center gap-1">
+                        <span className="text-[11px] text-slate-400">{ar ? 'مُسند إلى' : 'Owner'}</span>
+                        <select
+                          value={s.assignedToId ?? ''}
+                          onChange={(e) => ownerMut.mutate({ id: s.id, ownerId: e.target.value })}
+                          disabled={ownerMut.isPending}
+                          className="rounded border border-slate-200 px-1.5 py-0.5 text-[11px] bg-white"
+                        >
+                          <option value="">{ar ? 'غير معيّن' : 'Unassigned'}</option>
+                          {users.map((u) => (
+                            <option key={u.id} value={u.id}>{ar ? u.nameAr || u.name : u.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {isDeclined && s.supportDeclineReason && (
+                      <p className="mt-1 text-[11px] text-red-600">
+                        {ar ? 'رُفض الدعم: ' : 'Support declined: '}{s.supportDeclineReason}
+                      </p>
+                    )}
+
+                    {isRequested && amOwner && (
+                      declineFor === s.id ? (
+                        <div className="mt-1 space-y-1">
+                          <textarea
+                            value={declineReason}
+                            onChange={(e) => setDeclineReason(e.target.value)}
+                            rows={2}
+                            placeholder={ar ? 'سبب الرفض (مطلوب)' : 'Reason for declining (required)'}
+                            className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                          />
+                          <div className="flex gap-1">
+                            <Button onClick={() => declineMut.mutate({ id: s.id, reason: declineReason })} disabled={!declineReason.trim() || declineMut.isPending} className="h-7 text-xs bg-red-600 hover:bg-red-700">
+                              {ar ? 'تأكيد الرفض' : 'Confirm decline'}
+                            </Button>
+                            <Button variant="outline" onClick={() => { setDeclineFor(null); setDeclineReason(''); }} className="h-7 text-xs">
+                              {ar ? 'إلغاء' : 'Cancel'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex gap-1">
+                          <Button onClick={() => acceptMut.mutate(s.id)} disabled={acceptMut.isPending} className="h-7 text-xs bg-green-600 hover:bg-green-700 gap-1">
+                            {acceptMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                            {ar ? 'قبول الدعم' : 'Accept support'}
+                          </Button>
+                          <Button variant="outline" onClick={() => setDeclineFor(s.id)} className="h-7 text-xs">
+                            {ar ? 'رفض' : 'Decline'}
+                          </Button>
+                        </div>
+                      )
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
 
-          {isAssignee && !isClosed && (
+          {canManageSubs && (
             <div className="flex flex-col sm:flex-row gap-2">
               <Input dir="ltr" placeholder={ar ? 'مهمة فرعية (EN)' : 'Sub-task (EN)'} value={subEn} onChange={(e) => setSubEn(e.target.value)} className="h-8 text-sm" />
               <Input dir="rtl" placeholder={ar ? 'مهمة فرعية (AR)' : 'Sub-task (AR)'} value={subAr} onChange={(e) => setSubAr(e.target.value)} className="h-8 text-sm" />
