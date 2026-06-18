@@ -187,6 +187,22 @@ export async function listAssignableUsers(domainId?: string): Promise<Assignable
     if (ids.length === 0) return [];
   }
 
+  // Department scope: non-supers only see assignable users in their own
+  // department (cross-department assignment is the future borrow flow).
+  const { data: authData } = await supabase.auth.getUser();
+  const callerId = authData.user?.id ?? null;
+  let callerRole: string | null = null;
+  let callerDept: string | null = null;
+  if (callerId) {
+    const { data: me } = await supabase
+      .from('users')
+      .select('role, department_id')
+      .eq('id', callerId)
+      .single();
+    callerRole = (me as { role: string } | null)?.role ?? null;
+    callerDept = (me as { department_id: string | null } | null)?.department_id ?? null;
+  }
+
   let q = supabase
     .from('users')
     .select('id, name, name_ar, role, avatar')
@@ -194,6 +210,7 @@ export async function listAssignableUsers(domainId?: string): Promise<Assignable
     .is('deleted_at', null)
     .in('role', ['rm', 'arm', 'admin', 'super_admin']);
   if (ids) q = q.in('id', ids);
+  if (callerRole !== 'super_admin' && callerDept) q = q.eq('department_id', callerDept);
 
   const { data, error } = await q.order('name', { ascending: true });
   if (error) throw new Error(error.message);
