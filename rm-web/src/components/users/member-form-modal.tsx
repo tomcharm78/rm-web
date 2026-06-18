@@ -11,6 +11,7 @@
 // toggle is individually overridable. super_admin is all-on and locked.
 
 import { useEffect, useState } from 'react';
+import { listDepartments } from '@/lib/tasks/queries';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, X, UserPlus, KeyRound, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
@@ -65,6 +66,10 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
     member?.permissions ?? ROLE_DEFAULT_PERMISSIONS[member?.role ?? assignableRoles[0]]
   );
   const [adminId, setAdminId] = useState<string | null>(member?.adminId ?? null);
+  const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [useNewDept, setUseNewDept] = useState(false);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptNameAr, setNewDeptNameAr] = useState('');
   const [domainIds, setDomainIds] = useState<string[]>(member?.domainIds ?? []);
   const [isActive, setIsActive] = useState<boolean>(member?.isActive ?? true);
 
@@ -81,6 +86,11 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
   });
   const domains = domainsQ.data ?? [];
   const admins = adminsQ.data ?? [];
+  const departmentsQ = useQuery({
+    queryKey: ['departments-list'],
+    queryFn: listDepartments,
+  });
+  const departments = departmentsQ.data ?? [];
 
   const isSuperRole = role === 'super_admin';
 
@@ -111,6 +121,9 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
     domainIds,
     avatar: member?.avatar ?? null,
     isActive,
+    departmentId: useNewDept ? null : departmentId,
+    newDepartmentName: useNewDept ? newDeptName.trim() : undefined,
+    newDepartmentNameAr: useNewDept ? newDeptNameAr.trim() : undefined,
   });
 
   const save = useMutation({
@@ -120,6 +133,16 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
       }
       if (!isEdit && !email.trim()) {
         throw new Error(ar ? 'البريد مطلوب' : 'Email is required');
+      }
+      if (!isEdit && role === 'admin') {
+        const hasExisting = !useNewDept && !!departmentId;
+        const hasNew =
+          useNewDept && !!newDeptName.trim() && !!newDeptNameAr.trim();
+        if (!hasExisting && !hasNew) {
+          throw new Error(
+            ar ? 'القسم مطلوب للمسؤول' : 'Department is required for an admin'
+          );
+        }
       }
 
       if (isEdit) {
@@ -346,6 +369,69 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
               ))}
             </select>
           </div>
+
+          {/* Department (admins only, on create) */}
+          {role === 'admin' && !isEdit && (
+            <div>
+              <label className="text-xs text-slate-700">
+                {ar ? 'القسم' : 'Department'}
+              </label>
+              {!useNewDept ? (
+                <select
+                  value={departmentId ?? ''}
+                  onChange={(e) => setDepartmentId(e.target.value || null)}
+                  disabled={save.isPending}
+                  className={FIELD_CLS}
+                >
+                  <option value="">
+                    {ar ? '— اختر قسمًا —' : '— Select a department —'}
+                  </option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {ar ? d.nameAr || d.name : d.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="space-y-2 mt-1">
+                  <input
+                    value={newDeptName}
+                    onChange={(e) => setNewDeptName(e.target.value)}
+                    disabled={save.isPending}
+                    placeholder={ar ? 'اسم القسم (إنجليزي)' : 'Department name (English)'}
+                    className={FIELD_CLS}
+                  />
+                  <input
+                    value={newDeptNameAr}
+                    onChange={(e) => setNewDeptNameAr(e.target.value)}
+                    disabled={save.isPending}
+                    dir="rtl"
+                    placeholder={ar ? 'اسم القسم (عربي)' : 'Department name (Arabic)'}
+                    className={FIELD_CLS}
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                disabled={save.isPending}
+                onClick={() => {
+                  setUseNewDept((v) => !v);
+                  setDepartmentId(null);
+                  setNewDeptName('');
+                  setNewDeptNameAr('');
+                }}
+                className="mt-1 text-xs text-indigo-600 hover:underline"
+              >
+                {useNewDept
+                  ? ar
+                    ? 'اختيار قسم موجود'
+                    : 'Pick an existing department'
+                  : ar
+                  ? '＋ قسم جديد'
+                  : '＋ New department'}
+              </button>
+            </div>
+          )}
 
           {/* Domains */}
           <div>

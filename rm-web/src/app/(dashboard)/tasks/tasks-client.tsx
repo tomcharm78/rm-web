@@ -7,12 +7,12 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ClipboardList, Search, AlertTriangle, CalendarClock, Loader2, ShieldAlert, Plus } from 'lucide-react';
+import { ClipboardList, Search, AlertTriangle, CalendarClock, Loader2, ShieldAlert, Plus,SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Input } from '@/components/ui/input';
 import { TaskFormModal } from '@/components/tasks/task-form-modal';
-import { listTasks, listTaskDomains, listAssignableUsers, type TaskFilters } from '@/lib/tasks/queries';
+import { listTasks, listTaskDomains, listAssignableUsers, listDepartments, type TaskFilters } from '@/lib/tasks/queries';
 import {
   STATUS_LABELS,
   PRIORITY_LABELS,
@@ -49,6 +49,23 @@ export function TasksClient() {
   const [domainId, setDomainId] = useState<string | 'all'>('all');
   const [assigneeId, setAssigneeId] = useState<string | 'all'>('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [departmentId, setDepartmentId] = useState<string | 'all'>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const panelFieldCls =
+    'h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1';
+  const activeFilterCount =
+    (status !== 'all' ? 1 : 0) +
+    (priority !== 'all' ? 1 : 0) +
+    (domainId !== 'all' ? 1 : 0) +
+    (assigneeId !== 'all' ? 1 : 0) +
+    (overdueOnly ? 1 : 0);
+  const clearFilters = () => {
+    setStatus('all');
+    setPriority('all');
+    setDomainId('all');
+    setAssigneeId('all');
+    setOverdueOnly(false);
+  };
   const [showAdd, setShowAdd] = useState(false);
   const queryClient = useQueryClient();
   const canCreate =
@@ -59,7 +76,7 @@ export function TasksClient() {
   const isManager = user?.role === 'admin' || user?.role === 'super_admin';
 
   const serverStatus = status === 'declined' ? 'all' : status;
-  const filters: TaskFilters = { search, status: serverStatus, priority, domainId, assigneeId, overdueOnly };
+  const filters: TaskFilters = { search, status: serverStatus, priority, domainId, assigneeId, overdueOnly, departmentId };
 
   const tasksQ = useQuery({
     queryKey: ['tasks', filters, user?.id, user?.role],
@@ -68,6 +85,7 @@ export function TasksClient() {
   });
   const domainsQ = useQuery({ queryKey: ['task-domains'], queryFn: listTaskDomains });
   const usersQ = useQuery({ queryKey: ['assignable-all'], queryFn: () => listAssignableUsers() });
+  const departmentsQ = useQuery({ queryKey: ['departments'], queryFn: listDepartments, enabled: user?.role === 'super_admin' });
 
   const tasks = useMemo(() => {
     const list = tasksQ.data ?? [];
@@ -130,46 +148,84 @@ export function TasksClient() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select value={status} onChange={(e) => setStatus(e.target.value as TaskStatus | 'all' | 'declined')} className={fieldCls}>
-          <option value="all">{ar ? 'كل الحالات' : 'All statuses'}</option>
-          {TASK_STATUSES.filter((s) => s !== 'blocked').map((s) => (
-            <option key={s} value={s}>{STATUS_LABELS[s][ar ? 'ar' : 'en']}</option>
-          ))}
-          <option value="declined">{ar ? 'مرفوضة' : 'Declined'}</option>
-        </select>
-        <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority | 'all')} className={fieldCls}>
-          <option value="all">{ar ? 'كل الأولويات' : 'All priorities'}</option>
-          {TASK_PRIORITIES.map((p) => (
-            <option key={p} value={p}>{PRIORITY_LABELS[p][ar ? 'ar' : 'en']}</option>
-          ))}
-        </select>
-        <select value={domainId} onChange={(e) => setDomainId(e.target.value)} className={fieldCls}>
-          <option value="all">{ar ? 'كل المجالات' : 'All domains'}</option>
-          {domains.map((d) => (
-            <option key={d.id} value={d.id}>{ar ? d.nameAr : d.name}</option>
-          ))}
-        </select>
-        {isManager && (
-          <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={fieldCls}>
-            <option value="all">{ar ? 'كل المسؤولين' : 'All assignees'}</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>{ar ? u.nameAr || u.name : u.name}</option>
+        {user?.role === 'super_admin' && (
+          <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className={fieldCls}>
+            <option value="all">{ar ? 'كل الإدارات' : 'All departments'}</option>
+            {(departmentsQ.data ?? []).map((d) => (
+              <option key={d.id} value={d.id}>{ar ? d.nameAr || d.name : d.name}</option>
             ))}
           </select>
         )}
-        <button
-          type="button"
-          onClick={() => setOverdueOnly((v) => !v)}
-          className={
-            'h-9 rounded-md border px-3 text-sm inline-flex items-center gap-1.5 ' +
-            (overdueOnly
-              ? 'border-red-300 bg-red-50 text-red-700'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')
-          }
-        >
-          <AlertTriangle className="h-4 w-4" />
-          {ar ? 'المتأخرة فقط' : 'Overdue only'}
-        </button>
+<div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm inline-flex items-center gap-1.5 text-slate-600 hover:bg-slate-50"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {ar ? 'تصفية' : 'Filters'}
+            {activeFilterCount > 0 && (
+              <span className="ms-1 inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1 rounded-full bg-indigo-600 text-white text-[11px]">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          {showFilters && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowFilters(false)} />
+              <div className="absolute z-50 mt-1 end-0 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">{ar ? 'تصفية' : 'Filters'}</span>
+                  {activeFilterCount > 0 && (
+                    <button type="button" onClick={clearFilters} className="text-xs text-indigo-600 hover:underline">
+                      {ar ? 'مسح' : 'Clear'}
+                    </button>
+                  )}
+                </div>
+                <select value={status} onChange={(e) => setStatus(e.target.value as TaskStatus | 'all' | 'declined')} className={panelFieldCls}>
+                  <option value="all">{ar ? 'كل الحالات' : 'All statuses'}</option>
+                  {TASK_STATUSES.filter((s) => s !== 'blocked').map((s) => (
+                    <option key={s} value={s}>{STATUS_LABELS[s][ar ? 'ar' : 'en']}</option>
+                  ))}
+                  <option value="declined">{ar ? 'مرفوضة' : 'Declined'}</option>
+                </select>
+                <select value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority | 'all')} className={panelFieldCls}>
+                  <option value="all">{ar ? 'كل الأولويات' : 'All priorities'}</option>
+                  {TASK_PRIORITIES.map((p) => (
+                    <option key={p} value={p}>{PRIORITY_LABELS[p][ar ? 'ar' : 'en']}</option>
+                  ))}
+                </select>
+                <select value={domainId} onChange={(e) => setDomainId(e.target.value)} className={panelFieldCls}>
+                  <option value="all">{ar ? 'كل المجالات' : 'All domains'}</option>
+                  {domains.map((d) => (
+                    <option key={d.id} value={d.id}>{ar ? d.nameAr : d.name}</option>
+                  ))}
+                </select>
+                {isManager && (
+                  <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={panelFieldCls}>
+                    <option value="all">{ar ? 'كل المسؤولين' : 'All assignees'}</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{ar ? u.nameAr || u.name : u.name}</option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setOverdueOnly((v) => !v)}
+                  className={
+                    'w-full h-9 rounded-md border px-3 text-sm inline-flex items-center justify-center gap-1.5 ' +
+                    (overdueOnly
+                      ? 'border-red-300 bg-red-50 text-red-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')
+                  }
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  {ar ? 'المتأخرة فقط' : 'Overdue only'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         {canCreate && (
           <button
             type="button"

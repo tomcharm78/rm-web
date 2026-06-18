@@ -149,6 +149,36 @@ export async function POST(req: NextRequest) {
     );
   }
   const newUserId = created.user.id;
+  // 5b. Resolve department placement (admins only; rm/arm inherit via trigger)
+  let finalDepartmentId: string | null = null;
+  if (role === 'admin') {
+    if (body.departmentId) {
+      finalDepartmentId = body.departmentId;
+    } else if (body.newDepartmentName?.trim()) {
+      const { data: newDept, error: deptErr } = await admin
+        .from('departments')
+        .insert({
+          name: body.newDepartmentName.trim(),
+          name_ar: (body.newDepartmentNameAr ?? body.newDepartmentName).trim(),
+          organization_id: caller.organization_id,
+          is_active: true,
+        })
+        .select('id')
+        .single();
+      if (deptErr || !newDept) {
+        console.error('[users/create] department insert failed:', deptErr);
+        await admin.auth.admin.deleteUser(newUserId);
+        return NextResponse.json(
+          { error: 'department_create_failed', message: deptErr?.message },
+          { status: 400 }
+        );
+      }
+      finalDepartmentId = newDept.id;
+    } else {
+      await admin.auth.admin.deleteUser(newUserId);
+      return NextResponse.json({ error: 'department_required' }, { status: 400 });
+    }
+  }
 
   // 6. Insert the users row under the CALLER's session (RLS backstop)
   const { error: insErr } = await supabase.from('users').insert({
@@ -159,6 +189,7 @@ export async function POST(req: NextRequest) {
     role,
     permissions,
     admin_id: finalAdminId,
+    department_id: finalDepartmentId,
     avatar,
     is_active: isActive,
     force_password_change: true,

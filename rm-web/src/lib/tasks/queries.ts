@@ -30,6 +30,7 @@ import {
 import type { UserRole } from '@/types';
 
 export type TaskFilters = {
+  departmentId?: string;
   search?: string;
   status?: TaskStatus | 'all';
   priority?: TaskPriority | 'all';
@@ -76,6 +77,9 @@ export async function listTasks(filters: TaskFilters, scope: TaskScope): Promise
   if (filters.domainId && filters.domainId !== 'all') q = q.eq('domain_id', filters.domainId);
   if (filters.assigneeId && filters.assigneeId !== 'all') {
     q = q.eq('assigned_to_id', filters.assigneeId);
+  }
+  if (filters.departmentId && filters.departmentId !== 'all') {
+    q = q.eq('department_id', filters.departmentId);
   }
   if (filters.sourceSessionId) q = q.eq('source_session_id', filters.sourceSessionId);
   if (filters.overdueOnly) {
@@ -927,3 +931,18 @@ export async function declineSubtaskSupport(subtaskId: string, reason: string): 
 }
 // ---- subtask ownership + support (scope C) ----
 
+export type DepartmentOption = { id: string; name: string; nameAr: string };
+
+export async function listDepartments(): Promise<DepartmentOption[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('departments')
+    .select('id, name, name_ar')
+    .is('deleted_at', null)
+    .eq('is_active', true)
+    .order('name', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data as { id: string; name: string; name_ar: string }[]).map((d) => ({
+    id: d.id, name: d.name, nameAr: d.name_ar,
+  }));
+}

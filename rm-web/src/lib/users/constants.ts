@@ -65,4 +65,8 @@ export type MemberFormInput = {
   domainIds: string[];      // user_domains assignments
   avatar: string | null;
   isActive: boolean;
+  // Department placement (admins only; rm/arm inherit via DB trigger)
+  departmentId?: string | null;
+  newDepartmentName?: string;
+  newDepartmentNameAr?: string;
 };

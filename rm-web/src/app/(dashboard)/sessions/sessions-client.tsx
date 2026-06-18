@@ -18,12 +18,14 @@ import {
   Filter,
   GitBranch,
   Hash,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { listSessions } from '@/lib/sessions/queries';
+import { listDepartments } from '@/lib/tasks/queries';
 import { sessionsToCsv, downloadCsv } from '@/lib/sessions/export';
 import { SessionForm } from '@/components/sessions/session-form';
 import type { Session, SessionStatus, MeetingType } from '@/types/session';
@@ -37,6 +39,15 @@ export function SessionsPageClient() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<SessionStatus | ''>('');
   const [meetingType, setMeetingType] = useState<MeetingType | ''>('');
+  const [departmentId, setDepartmentId] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
+  const panelFieldCls =
+    'h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1';
+  const sessFilterCount = (status ? 1 : 0) + (meetingType ? 1 : 0);
+  const clearFilters = () => {
+    setStatus('');
+    setMeetingType('');
+  };
   const [showCreate, setShowCreate] = useState(false);
 
   const canCreate = useMemo(
@@ -45,13 +56,15 @@ export function SessionsPageClient() {
   );
 
   const { data: allSessions = [], isLoading, isError, error } = useQuery({
-    queryKey: ['sessions', { search, status }],
+    queryKey: ['sessions', { search, status, departmentId }],
     queryFn: () =>
       listSessions({
         search: search.trim() || undefined,
         status: status || undefined,
+        departmentId: departmentId || undefined,
       }),
   });
+  const departmentsQ = useQuery({ queryKey: ['departments'], queryFn: listDepartments, enabled: user?.role === 'super_admin' });
 
   // Meeting-type filter is client-side since `listSessions` doesn't take it.
   // Easy to push to server later if list grows large.
@@ -116,50 +129,62 @@ export function SessionsPageClient() {
             className={isRTL ? 'pr-10' : 'pl-10'}
           />
         </div>
-        <div className="relative">
-          <Filter
-            className={cn(
-              'absolute top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none',
-              isRTL ? 'right-3' : 'left-3'
-            )}
-          />
+        {user?.role === 'super_admin' && (
           <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as SessionStatus | '')}
+            value={departmentId}
+            onChange={(e) => setDepartmentId(e.target.value)}
             className={cn(
-              'h-9 rounded-md border border-slate-200 bg-white text-sm w-full sm:w-44',
-              'focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1',
-              isRTL ? 'pr-10 pl-3' : 'pl-10 pr-3'
+              'h-9 rounded-md border border-slate-200 bg-white text-sm w-full sm:w-52 px-3',
+              'focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1'
             )}
           >
-            <option value="">{language === 'ar' ? 'كل الحالات' : 'All statuses'}</option>
-            <option value="draft">{language === 'ar' ? 'مسودة' : 'Draft'}</option>
-            <option value="locked">{language === 'ar' ? 'مقفلة' : 'Locked'}</option>
+            <option value="">{language === 'ar' ? 'كل الإدارات' : 'All departments'}</option>
+            {(departmentsQ.data ?? []).map((d) => (
+              <option key={d.id} value={d.id}>{language === 'ar' ? d.nameAr || d.name : d.name}</option>
+            ))}
           </select>
-        </div>
+        )}
         <div className="relative">
-          <GitBranch
-            className={cn(
-              'absolute top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none',
-              isRTL ? 'right-3' : 'left-3'
-            )}
-          />
-          <select
-            value={meetingType}
-            onChange={(e) => setMeetingType(e.target.value as MeetingType | '')}
-            className={cn(
-              'h-9 rounded-md border border-slate-200 bg-white text-sm w-full sm:w-44',
-              'focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1',
-              isRTL ? 'pr-10 pl-3' : 'pl-10 pr-3'
-            )}
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm inline-flex items-center gap-1.5 text-slate-600 hover:bg-slate-50"
           >
-            <option value="">{language === 'ar' ? 'كل الأنواع' : 'All types'}</option>
-            <option value="main">{language === 'ar' ? 'رئيسية' : 'Main'}</option>
-            <option value="followup">{language === 'ar' ? 'متابعة' : 'Follow-up'}</option>
-          </select>
+            <SlidersHorizontal className="h-4 w-4" />
+            {language === 'ar' ? 'تصفية' : 'Filters'}
+            {sessFilterCount > 0 && (
+              <span className="ms-1 inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1 rounded-full bg-indigo-600 text-white text-[11px]">
+                {sessFilterCount}
+              </span>
+            )}
+          </button>
+          {showFilters && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowFilters(false)} />
+              <div className={cn('absolute z-50 mt-1 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg space-y-2', isRTL ? 'start-0' : 'end-0')}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">{language === 'ar' ? 'تصفية' : 'Filters'}</span>
+                  {sessFilterCount > 0 && (
+                    <button type="button" onClick={clearFilters} className="text-xs text-indigo-600 hover:underline">
+                      {language === 'ar' ? 'مسح' : 'Clear'}
+                    </button>
+                  )}
+                </div>
+                <select value={status} onChange={(e) => setStatus(e.target.value as SessionStatus | '')} className={panelFieldCls}>
+                  <option value="">{language === 'ar' ? 'كل الحالات' : 'All statuses'}</option>
+                  <option value="draft">{language === 'ar' ? 'مسودة' : 'Draft'}</option>
+                  <option value="locked">{language === 'ar' ? 'مقفلة' : 'Locked'}</option>
+                </select>
+                <select value={meetingType} onChange={(e) => setMeetingType(e.target.value as MeetingType | '')} className={panelFieldCls}>
+                  <option value="">{language === 'ar' ? 'كل الأنواع' : 'All types'}</option>
+                  <option value="main">{language === 'ar' ? 'رئيسية' : 'Main'}</option>
+                  <option value="followup">{language === 'ar' ? 'متابعة' : 'Follow-up'}</option>
+                </select>
+              </div>
+            </>
+          )}
         </div>
       </div>
-
       {/* States */}
       {isLoading && (
         <div className="bg-white rounded-lg border border-slate-200 p-12 text-center text-slate-500">

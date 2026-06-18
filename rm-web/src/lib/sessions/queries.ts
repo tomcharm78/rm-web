@@ -35,6 +35,7 @@ import {
 // =============================================================================
 
 export type SessionListFilters = {
+  departmentId?: string;
   search?: string;
   status?: SessionStatus;
 };
@@ -49,6 +50,9 @@ export async function listSessions(filters: SessionListFilters = {}): Promise<Se
 
   if (filters.status) {
     query = query.eq('status', filters.status);
+  }
+  if (filters.departmentId) {
+    query = query.eq('department_id', filters.departmentId);
   }
 
 if (filters.search && filters.search.trim()) {
