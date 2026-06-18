@@ -425,6 +425,37 @@ export async function listUserNames(): Promise<UserName[]> {
   }));
 }
 
+// Department-scoped user list for OWNER/ASSIGNEE pickers.
+// super_admin -> everyone; anyone else -> their own department only.
+// (Cross-department reach is the admin borrow flow, built with Task Force.)
+export async function listDepartmentUserNames(): Promise<UserName[]> {
+  const supabase = createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) return [];
+  const { data: me, error: meErr } = await supabase
+    .from('users')
+    .select('role, department_id')
+    .eq('id', uid)
+    .single();
+  if (meErr) throw new Error(meErr.message);
+  let q = supabase
+    .from('users')
+    .select('id, name, name_ar')
+    .eq('is_active', true)
+    .is('deleted_at', null);
+  if ((me as { role: string }).role !== 'super_admin') {
+    const dept = (me as { department_id: string | null }).department_id;
+    q = dept ? q.eq('department_id', dept) : q.eq('id', uid);
+  }
+  const { data, error } = await q.order('name', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data as { id: string; name: string; name_ar: string }[]).map((u) => ({
+    id: u.id,
+    name: u.name,
+    nameAr: u.name_ar,
+  }));
+}
 // ========================= Milestones =========================
 // Progress is computed from the milestone checklist (checked / total) and stored
 // on the task. Only the assignee can write milestones (RLS task_milestones_*).

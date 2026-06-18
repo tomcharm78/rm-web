@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import {
   listTaskMilestones, addTaskMilestone, toggleTaskMilestone, deleteTaskMilestone,
   addMilestoneSubtask, toggleMilestoneSubtask, deleteMilestoneSubtask, setMilestoneDueDate,
-  submitClosure, approveClosure, rejectClosure, listUserNames,
+  submitClosure, approveClosure, rejectClosure, listUserNames, listDepartmentUserNames,
   setSubtaskOwner, acceptSubtaskSupport, declineSubtaskSupport,
 } from '@/lib/tasks/queries';
 import { milestoneProgress, milestoneOneProgress, type Task, type TaskMilestone } from '@/types/task';
@@ -49,6 +49,7 @@ export function TaskMilestones({ task }: { task: Task }) {
   const progress = milestoneProgress(milestones);
 
   const namesQ = useQuery({ queryKey: ['user-names'], queryFn: listUserNames });
+  const ownerOptionsQ = useQuery({ queryKey: ['dept-user-names'], queryFn: listDepartmentUserNames });
   const nameOf = (id: string | null) => {
     if (!id) return ar ? 'غير معيّن' : 'Unassigned';
     const u = (namesQ.data ?? []).find((x) => x.id === id);
@@ -110,6 +111,7 @@ export function TaskMilestones({ task }: { task: Task }) {
               ar={ar}
               nameOf={nameOf}
               users={namesQ.data ?? []}
+              ownerOptions={ownerOptionsQ.data ?? []}
               currentUserId={user?.id ?? null}
               onChanged={refresh}
             />
@@ -218,7 +220,7 @@ export function TaskMilestones({ task }: { task: Task }) {
   );
 }
 function MilestoneRow({
-  m, taskId, isAssignee, isSuper, isClosed, ar, nameOf, users, currentUserId, onChanged,
+  m, taskId, isAssignee, isSuper, isClosed, ar, nameOf, users, ownerOptions, currentUserId, onChanged,
 }: {
   m: TaskMilestone;
   taskId: string;
@@ -228,6 +230,7 @@ function MilestoneRow({
   ar: boolean;
   nameOf: (id: string | null) => string;
   users: { id: string; name: string; nameAr: string }[];
+  ownerOptions: { id: string; name: string; nameAr: string }[];
   currentUserId: string | null;
   onChanged: () => void;
 }) {
@@ -368,9 +371,16 @@ function MilestoneRow({
                           className="rounded border border-slate-200 px-1.5 py-0.5 text-[11px] bg-white"
                         >
                           <option value="">{ar ? 'غير معيّن' : 'Unassigned'}</option>
-                          {users.map((u) => (
-                            <option key={u.id} value={u.id}>{ar ? u.nameAr || u.name : u.name}</option>
-                          ))}
+                          {(() => {
+                            const opts = [...ownerOptions];
+                            if (s.assignedToId && !opts.some((u) => u.id === s.assignedToId)) {
+                              const cur = users.find((u) => u.id === s.assignedToId);
+                              if (cur) opts.push(cur);
+                            }
+                            return opts.map((u) => (
+                              <option key={u.id} value={u.id}>{ar ? u.nameAr || u.name : u.name}</option>
+                            ));
+                          })()}
                         </select>
                       </div>
                     )}
