@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { User, UserRole } from '@/types';
@@ -273,6 +274,7 @@ export function DashboardShell({
               <h1 className="text-lg font-semibold text-slate-900">{currentLabel}</h1>
             </div>
             <div className="flex items-center gap-2">
+              <NotificationBell />
               <Button
                 variant="ghost"
                 size="sm"
