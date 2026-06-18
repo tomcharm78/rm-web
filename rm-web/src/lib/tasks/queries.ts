@@ -977,3 +977,35 @@ export async function listDepartments(): Promise<DepartmentOption[]> {
     id: d.id, name: d.name, nameAr: d.name_ar,
   }));
 }
+// Tasks where the current user OWNS a milestone subtask (support or otherwise) —
+// the durable "subtasks I own" view. RLS still scopes what's returned.
+export async function listTasksWithMySubtasks(): Promise<Task[]> {
+  const supabase = createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) return [];
+
+  const { data: subs, error: subErr } = await supabase
+    .from('milestone_subtasks')
+    .select('milestone_id')
+    .eq('assigned_to_id', uid);
+  if (subErr) throw new Error(subErr.message);
+  const milestoneIds = Array.from(new Set((subs ?? []).map((s) => s.milestone_id as string)));
+  if (milestoneIds.length === 0) return [];
+
+  const { data: mils, error: milErr } = await supabase
+    .from('task_milestones')
+    .select('task_id')
+    .in('id', milestoneIds);
+  if (milErr) throw new Error(milErr.message);
+  const taskIds = Array.from(new Set((mils ?? []).map((m) => m.task_id as string)));
+  if (taskIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .in('id', taskIds)
+    .is('deleted_at', null);
+  if (error) throw new Error(error.message);
+  return (data as TaskRow[]).map(dbTaskToTask);
+}

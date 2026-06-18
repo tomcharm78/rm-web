@@ -12,7 +12,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Input } from '@/components/ui/input';
 import { TaskFormModal } from '@/components/tasks/task-form-modal';
-import { listTasks, listTaskDomains, listAssignableUsers, listDepartments, type TaskFilters } from '@/lib/tasks/queries';
+import { listTasks, listTasksWithMySubtasks, listTaskDomains, listAssignableUsers, listDepartments, type TaskFilters } from '@/lib/tasks/queries';
 import {
   STATUS_LABELS,
   PRIORITY_LABELS,
@@ -51,6 +51,7 @@ export function TasksClient() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [departmentId, setDepartmentId] = useState<string | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [view, setView] = useState<'assigned' | 'subtasks'>('assigned');
   const panelFieldCls =
     'h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1';
   const activeFilterCount =
@@ -79,8 +80,11 @@ export function TasksClient() {
   const filters: TaskFilters = { search, status: serverStatus, priority, domainId, assigneeId, overdueOnly, departmentId };
 
   const tasksQ = useQuery({
-    queryKey: ['tasks', filters, user?.id, user?.role],
-    queryFn: () => listTasks(filters, { userId: user!.id, role: user!.role }),
+    queryKey: ['tasks', view, filters, user?.id, user?.role],
+    queryFn: () =>
+      view === 'subtasks'
+        ? listTasksWithMySubtasks()
+        : listTasks(filters, { userId: user!.id, role: user!.role }),
     enabled: !!user,
   });
   const domainsQ = useQuery({ queryKey: ['task-domains'], queryFn: listTaskDomains });
@@ -89,10 +93,11 @@ export function TasksClient() {
 
   const tasks = useMemo(() => {
     const list = tasksQ.data ?? [];
+    if (view === 'subtasks') return list;
     if (status === 'declined') return list.filter((t) => !!t.declinedAt);
     if (status === 'pending') return list.filter((t) => !t.declinedAt);
     return list;
-  }, [tasksQ.data, status]);
+  }, [tasksQ.data, status, view]);
   const domains = domainsQ.data ?? [];
   const users = usersQ.data ?? [];
 
@@ -139,6 +144,28 @@ export function TasksClient() {
       </p>
 
       <div className="flex flex-col lg:flex-row gap-2 mb-4">
+        <div className="inline-flex rounded-md border border-slate-200 overflow-hidden shrink-0">
+          <button
+            type="button"
+            onClick={() => setView('assigned')}
+            className={
+              'px-3 h-9 text-sm ' +
+              (view === 'assigned' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50')
+            }
+          >
+            {ar ? 'المسندة إليّ' : 'Assigned to me'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('subtasks')}
+            className={
+              'px-3 h-9 text-sm border-s border-slate-200 ' +
+              (view === 'subtasks' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50')
+            }
+          >
+            {ar ? 'مهام فرعية أملكها' : 'Subtasks I own'}
+          </button>
+        </div>
         <div className="relative flex-1">
           <Search className="absolute top-1/2 -translate-y-1/2 start-3 h-4 w-4 text-slate-400" />
           <Input
