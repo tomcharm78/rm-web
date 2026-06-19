@@ -184,3 +184,15 @@ export async function listMyTeam(): Promise<{ id: string; name: string; nameAr: 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((u: any) => ({ id: u.id, name: u.name, nameAr: u.name_ar }));
 }
+export async function taskHasActiveTaskForce(taskId: string): Promise<boolean> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('task_force_requests')
+    .select('id')
+    .eq('task_id', taskId)
+    .in('status', ['sourcing', 'active'])
+    .is('deleted_at', null)
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data ?? []).length > 0;
+}

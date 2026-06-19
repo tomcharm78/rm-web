@@ -321,7 +321,7 @@ function MilestoneRow({
                 const isRequested = s.supportStatus === 'requested';
                 const isAccepted = s.supportStatus === 'accepted';
                 const isDeclined = s.supportStatus === 'declined';
-                const canTick = !isClosed && (s.supportStatus === null || isAccepted) && (isAssignee || isSuper || amOwner);
+                const canTick = !isClosed && (s.supportStatus === null || isAccepted) && (isAssignee || isSuper);
                 return (
                   <li key={s.id} className="rounded border border-slate-100 bg-white px-2 py-1.5">
                     <div className="flex items-center gap-2 text-sm">
@@ -368,7 +368,7 @@ function MilestoneRow({
                         <select
                           value={s.assignedToId ?? ''}
                           onChange={(e) => ownerMut.mutate({ id: s.id, ownerId: e.target.value })}
-                          disabled={ownerMut.isPending}
+                          disabled={ownerMut.isPending || s.supportStatus === 'requested' || s.supportStatus === 'accepted'}
                           className="rounded border border-slate-200 px-1.5 py-0.5 text-[11px] bg-white"
                         >
                           <option value="">{ar ? 'غير معيّن' : 'Unassigned'}</option>

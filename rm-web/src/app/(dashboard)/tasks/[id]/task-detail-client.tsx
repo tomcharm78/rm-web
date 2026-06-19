@@ -4,6 +4,8 @@
 // linked session, and the status-change history. The action bar (status
 // workflow, completion edit, reassign, cancel, edit) is added next.
 
+import { useAuth } from '@/providers/auth-provider';
+import { taskHasActiveTaskForce } from '@/lib/task-force/queries';
 import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
@@ -56,6 +58,13 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
   const domainsQ = useQuery({ queryKey: ['task-domains'], queryFn: listTaskDomains });
 
   const task = taskQ.data;
+  const tfActiveQ = useQuery({
+    queryKey: ['task-has-tf', task?.id],
+    queryFn: () => taskHasActiveTaskForce(task!.id),
+    enabled: !!task,
+  });
+  const isLead = !!tfActiveQ.data;
+  const { user } = useAuth();
   const sessionAccessQ = useQuery({
     queryKey: ['task-source-session', task?.sourceSessionId],
     queryFn: () => getSession(task!.sourceSessionId!),
@@ -138,7 +147,19 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5 text-sm">
           <Meta label={ar ? 'المجال' : 'Domain'} value={domainName(task.domainId)} />
-          <Meta label={ar ? 'المسؤول' : 'Assignee'} value={personName(task.assignedToId)} />
+          <Meta
+            label={ar ? 'المسؤول' : 'Assignee'}
+            value={
+              <span className="inline-flex items-center gap-1.5">
+                {personName(task.assignedToId)}
+                {isLead && user?.id !== task.assignedToId && (
+                  <span className="text-[10px] font-semibold bg-indigo-600 text-white rounded px-1.5 py-0.5">
+                    LEAD
+                  </span>
+                )}
+              </span>
+            }
+          />
           <Meta label={ar ? 'أنشئت بواسطة' : 'Created by'} value={personName(task.createdById)} />
           <Meta
             label={ar ? 'الاستحقاق' : 'Due date'}
