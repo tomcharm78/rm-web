@@ -6,6 +6,7 @@ import {
   Loader2, Plus, Trash2, Check, ClipboardCheck, Send, ThumbsUp, ThumbsDown,
   AlertTriangle, ChevronRight, ChevronDown, CalendarClock, User,
 } from 'lucide-react';
+import { SubtaskTaskForce } from '@/components/tasks/subtask-task-force';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Button } from '@/components/ui/button';
@@ -385,6 +386,7 @@ function MilestoneRow({
                       </div>
                     )}
 
+                    <SubtaskTaskForce subtaskId={s.id} taskId={taskId} canRequest={isAssignee && !isSuper} />
                     {isDeclined && s.supportDeclineReason && (
                       <p className="mt-1 text-[11px] text-red-600">
                         {ar ? 'رُفض الدعم: ' : 'Support declined: '}{s.supportDeclineReason}
