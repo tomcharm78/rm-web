@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList, Search, AlertTriangle, CalendarClock, Loader2, ShieldAlert, Plus,SlidersHorizontal } from 'lucide-react';
+import { TaskForceInbox } from '@/components/tasks/task-force-inbox';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Input } from '@/components/ui/input';
@@ -143,6 +144,7 @@ export function TasksClient() {
         {ar ? 'إدارة المهام ومتابعة حالتها وإنجازها.' : 'Track tasks, their status and completion.'}
       </p>
 
+      {isManager && <TaskForceInbox />}
       <div className="flex flex-col lg:flex-row gap-2 mb-4">
         <div className="inline-flex rounded-md border border-slate-200 overflow-hidden shrink-0">
           <button
