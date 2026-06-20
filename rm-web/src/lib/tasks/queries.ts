@@ -1024,5 +1024,23 @@ export async function listTasksWithMySubtasks(): Promise<Task[]> {
     .in('id', taskIds)
     .is('deleted_at', null);
   if (error) throw new Error(error.message);
-  return (data as TaskRow[]).map(dbTaskToTask);
+  const tasks = (data as TaskRow[]).map(dbTaskToTask);
+
+  // Attach the assignee (lead) name org-wide. The users table is NOT behind the
+  // department wall, so a cross-department lead resolves here even when the
+  // client-side dept-scoped names map does not.
+  const assigneeIds = Array.from(new Set(tasks.map((t) => t.assignedToId).filter(Boolean))) as string[];
+  if (assigneeIds.length === 0) return tasks;
+  const { data: people } = await supabase
+    .from('users')
+    .select('id, name, name_ar')
+    .in('id', assigneeIds);
+  const nameMap = new Map<string, { name: string; nameAr: string }>();
+  (people ?? []).forEach((p) =>
+    nameMap.set(p.id as string, { name: p.name as string, nameAr: (p.name_ar as string) ?? '' }),
+  );
+  return tasks.map((t) => {
+    const n = t.assignedToId ? nameMap.get(t.assignedToId) : undefined;
+    return { ...t, assigneeName: n?.name, assigneeNameAr: n?.nameAr } as Task;
+  });
 }

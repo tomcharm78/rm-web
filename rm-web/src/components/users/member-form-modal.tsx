@@ -21,7 +21,9 @@ import { Input } from '@/components/ui/input';
 import {
   updateMember,
   listDomains,
-  listAssignableAdmins,
+  listAssignableAdmins, 
+  listAssignableSupers,
+  listHigherManagement,
   type Member,
 } from '@/lib/users/queries';
 import {
@@ -85,7 +87,11 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
     queryFn: listAssignableAdmins,
   });
   const domains = domainsQ.data ?? [];
-  const admins = adminsQ.data ?? [];
+  const admins = adminsQ.data ?? []; 
+  const supersQ = useQuery({ queryKey: ['assignable-supers'], queryFn: listAssignableSupers });
+  const supers = supersQ.data ?? [];
+  const higherMgmtQ = useQuery({ queryKey: ['higher-management'], queryFn: listHigherManagement });
+  const higherMgmt = higherMgmtQ.data ?? [];
   const departmentsQ = useQuery({
     queryKey: ['departments-list'],
     queryFn: listDepartments,
@@ -93,6 +99,7 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
   const departments = departmentsQ.data ?? [];
 
   const isSuperRole = role === 'super_admin';
+  const isEditingHM = !!(member as { isHigherManagement?: boolean } | undefined)?.isHigherManagement;
 
   // When role changes, re-apply that role's default permissions.
   useEffect(() => {
@@ -133,6 +140,9 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
       }
       if (!isEdit && !email.trim()) {
         throw new Error(ar ? 'البريد مطلوب' : 'Email is required');
+      }
+      if ((role === 'admin' || (role === 'super_admin' && !isEditingHM)) && !adminId) {
+        throw new Error(ar ? 'يجب اختيار جهة يتبع لها' : 'A reports-to is required');
       }
       if (!isEdit && role === 'admin') {
         const hasExisting = !useNewDept && !!departmentId;
@@ -353,7 +363,7 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
           {/* Reports to */}
           <div>
             <label className="text-xs text-slate-700">
-              {ar ? 'يتبع لـ (مدير)' : 'Reports to (admin)'}
+              {role === 'super_admin' ? (ar ? 'يتبع لـ (الإدارة العليا) *' : 'Reports to (Higher Management) *') : role === 'admin' ? (ar ? 'يتبع لـ (مدير عام) *' : 'Reports to (super-admin) *') : (ar ? 'يتبع لـ (مدير)' : 'Reports to (admin)')}
             </label>
             <select
               value={adminId ?? ''}
@@ -362,7 +372,7 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
               className={FIELD_CLS}
             >
               <option value="">{ar ? '— لا أحد —' : '— None —'}</option>
-              {admins.map((a) => (
+              {(role === 'super_admin' ? higherMgmt : role === 'admin' ? supers : admins).map((a) => (
                 <option key={a.id} value={a.id}>
                   {ar ? a.nameAr || a.name : a.name}
                 </option>

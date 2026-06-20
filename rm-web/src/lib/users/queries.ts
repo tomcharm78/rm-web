@@ -22,6 +22,7 @@ type MemberRow = DbUser & { user_domains: { domain_id: string }[] | null };
 function rowToMember(row: MemberRow): Member {
   return {
     ...dbUserToUser(row),
+    isHigherManagement: (row as { is_higher_management?: boolean }).is_higher_management ?? false,
     domainIds: (row.user_domains ?? []).map((d) => d.domain_id),
   };
 }
@@ -63,18 +64,40 @@ export async function listDomains(): Promise<DomainOption[]> {
 }
 
 // Admins a member can report to (admin_id picker).
-export async function listAssignableAdmins(): Promise<AdminOption[]> {
+export async function listAssignableSupers(): Promise<AdminOption[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('users')
     .select('id, name, name_ar')
-    .eq('role', 'admin')
+    .eq('role', 'super_admin')
+    .eq('is_higher_management', false)
     .eq('is_active', true)
     .is('deleted_at', null)
-    .order('name', { ascending: true });
-  if (error) { console.error('[listAssignableAdmins] error:', error); throw new Error(error.message); }
-  return (data as { id: string; name: string; name_ar: string }[])
-    .map((a) => ({ id: a.id, name: a.name, nameAr: a.name_ar }));
+    .order('name');
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((u) => ({
+    id: u.id as string,
+    name: u.name as string,
+    nameAr: (u.name_ar as string) ?? '',
+  }));
+}
+
+// The Higher Management placeholder — top reporting anchor for super-admins.
+export async function listHigherManagement(): Promise<AdminOption[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name, name_ar')
+    .eq('is_higher_management', true)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('name');
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((u) => ({
+    id: u.id as string,
+    name: u.name as string,
+    nameAr: (u.name_ar as string) ?? '',
+  }));
 }
 
 // ---------------------------------------------------------------- WRITE

@@ -305,7 +305,13 @@ export function TasksClient() {
                           )}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-slate-700">{assigneeName(t.assignedToId)}</td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {(() => {
+                          const lead = t as { assigneeName?: string; assigneeNameAr?: string };
+                          if (lead.assigneeName) return ar ? lead.assigneeNameAr || lead.assigneeName : lead.assigneeName;
+                          return assigneeName(t.assignedToId);
+                        })()}
+                      </td>
                       <td className="px-4 py-3">
                         {t.declinedAt ? (
                           <span className="inline-block rounded-full px-2 py-0.5 text-xs bg-red-100 text-red-700">
