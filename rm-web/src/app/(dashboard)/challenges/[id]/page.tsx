@@ -14,6 +14,7 @@ import {
 } from '@/lib/challenges/queries';
 import type { ChallengeStatus } from '@/types/challenge';
 import { ChallengeJournal } from '@/components/challenges/challenge-journal';
+import { ChallengeStakeholders } from '@/components/challenges/challenge-stakeholders';
 
 const IN = 'w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const LBL = 'text-xs text-slate-500 mb-1 block';
@@ -227,6 +228,7 @@ export default function ChallengeDetailPage() {
         </div>
       )}
 
+      <ChallengeStakeholders challengeId={id} />
       <ChallengeJournal challengeId={id} />
 
       {/* Status history */}
