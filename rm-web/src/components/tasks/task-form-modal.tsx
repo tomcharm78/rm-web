@@ -29,11 +29,13 @@ export function TaskFormModal({
   onClose,
   onCreated,
   sourceSessionId,
+  sourceChallengeId,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
   sourceSessionId?: string | null;
+  sourceChallengeId?: string | null;
 }) {
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -118,6 +120,7 @@ export function TaskFormModal({
         assignedToId,
         tatDueDate: new Date(dueDate).toISOString(),
         sourceSessionId: sourceSessionId ?? null,
+        sourceChallengeId: sourceChallengeId ?? null,
       }),
     onSuccess: () => {
       onCreated();

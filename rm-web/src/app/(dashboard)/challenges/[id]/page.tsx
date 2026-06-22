@@ -15,6 +15,8 @@ import {
 import { CollapsibleCard } from '@/components/challenges/collapsible-card';
 import { ChallengeStakeholders } from '@/components/challenges/challenge-stakeholders';
 import { ChallengeJournal } from '@/components/challenges/challenge-journal';
+import { TaskFormModal } from '@/components/tasks/task-form-modal';
+import { ClipboardList } from 'lucide-react';
 import type { ChallengeStatus } from '@/types/challenge';
 
 const IN = 'w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500';
@@ -74,6 +76,7 @@ export default function ChallengeDetailPage() {
   const [statusReason, setStatusReason] = useState('');
   const [completionDraft, setCompletionDraft] = useState<number | null>(null);
   const [resolutionDraft, setResolutionDraft] = useState<string | null>(null);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
 
   const c = challengeQ.data;
   const names = namesQ.data ?? [];
@@ -153,6 +156,21 @@ export default function ChallengeDetailPage() {
           <span>{ar ? 'بتاريخ:' : 'Created:'} <span className="text-slate-700">{fmt(c.createdAt, ar)}</span></span>
         </div>
       </div>
+
+      {isManager && (
+        <div className="mb-5">
+          <Button size="sm" variant="outline" onClick={() => setTaskFormOpen(true)} className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            {ar ? 'إضافة مهمة من هذا التحدي' : 'Add task from this challenge'}
+          </Button>
+        </div>
+      )}
+      <TaskFormModal
+        open={taskFormOpen}
+        onClose={() => setTaskFormOpen(false)}
+        onCreated={() => setTaskFormOpen(false)}
+        sourceChallengeId={id}
+      />
 
       {/* Manage case — collapsed by default, managers/owner/open-creator only */}
       {canEdit && (

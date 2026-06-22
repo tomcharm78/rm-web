@@ -303,6 +303,12 @@ export function TasksClient() {
                               {ar ? 'من جلسة' : 'from session'}
                             </span>
                           )}
+                          {t.sourceChallengeId && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-indigo-600 mt-0.5">
+                              <AlertTriangle className="h-3 w-3" />
+                              {ar ? 'من تحدٍّ' : 'from challenge'}
+                            </span>
+                          )}
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-slate-700">

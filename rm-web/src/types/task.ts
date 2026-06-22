@@ -95,6 +95,7 @@ export type Task = {
   cancelReason: string | null;
   cancelledAt: string | null;
   sourceSessionId: string | null;
+  sourceChallengeId: string | null;
   archivedAt: string | null;
   archivedById: string | null;
   createdAt: string;
@@ -135,6 +136,7 @@ export function dbTaskToTask(r: TaskRow): Task {
     cancelReason: r.cancel_reason,
     cancelledAt: r.cancelled_at,
     sourceSessionId: r.source_session_id,
+    sourceChallengeId: r.source_challenge_id,
     archivedAt: r.archived_at,
     archivedById: r.archived_by_id,
     createdAt: r.created_at,
@@ -191,6 +193,7 @@ export type TaskFormInput = {
   assignedToId: string;
   tatDueDate: string; // ISO datetime
   sourceSessionId?: string | null;
+  sourceChallengeId?: string | null;
 };
 
 // ---- Integration DTO (MOH later) ----

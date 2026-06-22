@@ -19,6 +19,7 @@ import {
   listTaskDomains,
 } from '@/lib/tasks/queries';
 import { getSession } from '@/lib/sessions/queries';
+import { getChallenge } from '@/lib/challenges/queries';
 import { TaskMilestones } from '@/components/tasks/task-milestones';
 import { TaskAcceptance } from '@/components/tasks/task-acceptance';
 import { TaskActions } from '@/components/tasks/task-actions';
@@ -71,6 +72,12 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
     enabled: !!task?.sourceSessionId,
   });
   const canOpenSession = !!sessionAccessQ.data;
+  const challengeAccessQ = useQuery({
+    queryKey: ['task-source-challenge', task?.sourceChallengeId],
+    queryFn: () => getChallenge(task!.sourceChallengeId!),
+    enabled: !!task?.sourceChallengeId,
+  });
+  const canOpenChallenge = !!challengeAccessQ.data;
   const history = historyQ.data ?? [];
   const [historyOpen, setHistoryOpen] = useState(false);
   const users = usersQ.data ?? [];
@@ -220,6 +227,15 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
         >
           <CalendarClock className="h-4 w-4" />
           {ar ? 'هذه المهمة ناتجة عن جلسة — عرض الجلسة' : 'This task originated from a session — view session'}
+        </Link>
+      )}
+      {task.sourceChallengeId && canOpenChallenge && (
+        <Link
+          href={`/challenges/${task.sourceChallengeId}`}
+          className="bg-white rounded-lg border border-slate-200 p-4 mb-4 flex items-center gap-2 text-sm text-indigo-700 hover:bg-slate-50"
+        >
+          <AlertTriangle className="h-4 w-4" />
+          {ar ? 'هذه المهمة ناتجة عن تحدٍّ — عرض التحدي' : 'This task originated from a challenge — view challenge'}
         </Link>
       )}
 

@@ -256,6 +256,7 @@ export async function createTask(input: TaskFormInput): Promise<Task> {
       created_by_id: authUser.id,
       tat_due_date: new Date(input.tatDueDate).toISOString(),
       source_session_id: input.sourceSessionId ?? null,
+      source_challenge_id: input.sourceChallengeId ?? null,
     })
     .select('*')
     .single();
