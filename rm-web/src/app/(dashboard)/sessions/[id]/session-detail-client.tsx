@@ -53,6 +53,7 @@ import { EditLockedDialog } from '@/components/sessions/edit-locked-dialog';
 import { EditHistoryPanel } from '@/components/sessions/edit-history-panel';
 import { AiMomGenerator } from '@/components/sessions/ai-mom-generator';
 import { AiTaskTriage } from '@/components/sessions/ai-task-triage';
+import { TaskFormModal } from '@/components/tasks/task-form-modal';
 import type { Session, MeetingType } from '@/types/session';
 import { cn } from '@/lib/utils';
 
@@ -72,6 +73,7 @@ export function SessionDetailClient({ id }: { id: string }) {
   const queryClient = useQueryClient();
 
   const [modal, setModal] = useState<ModalState>({ kind: 'none' });
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
 
   const { data: session, isLoading, isError, error } = useQuery({
     queryKey: ['session', id],
@@ -285,7 +287,21 @@ export function SessionDetailClient({ id }: { id: string }) {
       )}
 
       {/* AI Task Triage — only renders if there are pending AI tasks */}
+      {isAdminOrSuper && (
+        <div className="mb-4">
+          <Button size="sm" variant="outline" onClick={() => setTaskFormOpen(true)} className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            {language === 'ar' ? 'إضافة مهمة من هذه الجلسة' : 'Add task from this session'}
+          </Button>
+        </div>
+      )}
       {isAdminOrSuper && <AiTaskTriage session={session} />}
+      <TaskFormModal
+        open={taskFormOpen}
+        onClose={() => setTaskFormOpen(false)}
+        onCreated={() => setTaskFormOpen(false)}
+        sourceSessionId={session.id}
+      />
 
       <ContentBlock
         icon={<FileText className="h-4 w-4" />}

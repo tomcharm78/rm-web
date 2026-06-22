@@ -28,10 +28,12 @@ export function TaskFormModal({
   open,
   onClose,
   onCreated,
+  sourceSessionId,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  sourceSessionId?: string | null;
 }) {
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -115,6 +117,7 @@ export function TaskFormModal({
         subDomainId: subDomainId || null,
         assignedToId,
         tatDueDate: new Date(dueDate).toISOString(),
+        sourceSessionId: sourceSessionId ?? null,
       }),
     onSuccess: () => {
       onCreated();
