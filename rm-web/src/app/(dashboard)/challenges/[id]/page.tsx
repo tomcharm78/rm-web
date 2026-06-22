@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, History, UserCog } from 'lucide-react';
+import { ArrowLeft, Loader2, History, UserCog, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
@@ -12,13 +12,13 @@ import {
   getChallenge, changeChallengeStatus, updateChallenge,
   listChallengeStatusHistory, listChallengeDomains,
 } from '@/lib/challenges/queries';
-import type { ChallengeStatus } from '@/types/challenge';
-import { ChallengeJournal } from '@/components/challenges/challenge-journal';
+import { CollapsibleCard } from '@/components/challenges/collapsible-card';
 import { ChallengeStakeholders } from '@/components/challenges/challenge-stakeholders';
+import { ChallengeJournal } from '@/components/challenges/challenge-journal';
+import type { ChallengeStatus } from '@/types/challenge';
 
 const IN = 'w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const LBL = 'text-xs text-slate-500 mb-1 block';
-const CARD = 'bg-white rounded-lg border border-slate-200 p-4';
 
 const STATUS_OPTS: ChallengeStatus[] = ['open', 'investigating', 'mitigation_in_progress', 'resolved', 'closed'];
 
@@ -130,8 +130,8 @@ export default function ChallengeDetailPage() {
         <ArrowLeft className="h-4 w-4" />{ar ? 'كل التحديات' : 'All challenges'}
       </button>
 
-      {/* Header */}
-      <div className={CARD + ' mb-5'}>
+      {/* Header — always visible */}
+      <div className="bg-white rounded-lg border border-slate-200 p-4 mb-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -154,86 +154,87 @@ export default function ChallengeDetailPage() {
         </div>
       </div>
 
+      {/* Manage case — collapsed by default, managers/owner/open-creator only */}
       {canEdit && (
-        <div className="grid md:grid-cols-2 gap-5 mb-5">
-          {/* Status change */}
-          <div className={CARD}>
-            <h3 className="text-sm font-semibold mb-3">{ar ? 'تغيير الحالة' : 'Change status'}</h3>
-            <label className={LBL}>{ar ? 'الحالة الجديدة' : 'New status'}</label>
-            <select value={newStatus} onChange={(e) => setNewStatus(e.target.value as ChallengeStatus)} className={IN}>
-              <option value="">{ar ? '— اختر —' : '— select —'}</option>
-              {STATUS_OPTS.filter((s) => s !== c.status).map((s) => <option key={s} value={s}>{statusLabel(s, ar)}</option>)}
-            </select>
-            <label className={LBL + ' mt-3'}>{ar ? 'السبب (مطلوب)' : 'Reason (required)'}</label>
-            <textarea value={statusReason} onChange={(e) => setStatusReason(e.target.value)} rows={2} className={IN} />
-            {statusMut.isError && <p className="text-xs text-red-600 mt-1">{(statusMut.error as Error).message}</p>}
+        <CollapsibleCard title={ar ? 'إدارة الحالة' : 'Manage case'} icon={<Settings2 className="h-4 w-4 text-slate-500" />}>
+          <div className="grid md:grid-cols-2 gap-5">
+            {/* Status change */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3">{ar ? 'تغيير الحالة' : 'Change status'}</h4>
+              <label className={LBL}>{ar ? 'الحالة الجديدة' : 'New status'}</label>
+              <select value={newStatus} onChange={(e) => setNewStatus(e.target.value as ChallengeStatus)} className={IN}>
+                <option value="">{ar ? '— اختر —' : '— select —'}</option>
+                {STATUS_OPTS.filter((s) => s !== c.status).map((s) => <option key={s} value={s}>{statusLabel(s, ar)}</option>)}
+              </select>
+              <label className={LBL + ' mt-3'}>{ar ? 'السبب (مطلوب)' : 'Reason (required)'}</label>
+              <textarea value={statusReason} onChange={(e) => setStatusReason(e.target.value)} rows={2} className={IN} />
+              {statusMut.isError && <p className="text-xs text-red-600 mt-1">{(statusMut.error as Error).message}</p>}
+              <Button
+                onClick={() => statusMut.mutate()}
+                disabled={!newStatus || !statusReason.trim() || statusMut.isPending}
+                className="mt-3 gap-2 bg-indigo-600 hover:bg-indigo-700"
+              >
+                {statusMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{ar ? 'تطبيق' : 'Apply'}
+              </Button>
+            </div>
+
+            {/* Completion + assign */}
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold mb-3">{ar ? 'نسبة الإنجاز' : 'Completion'}</h4>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" min={0} max={100} value={completionVal}
+                    onChange={(e) => setCompletionDraft(Math.max(0, Math.min(100, Number(e.target.value))))}
+                    className={IN + ' w-24'}
+                  />
+                  <span className="text-sm text-slate-400">%</span>
+                  <Button
+                    variant="outline" onClick={() => completionMut.mutate(completionVal)}
+                    disabled={completionDraft === null || completionMut.isPending}
+                  >
+                    {completionMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (ar ? 'حفظ' : 'Save')}
+                  </Button>
+                </div>
+              </div>
+              {isManager && (
+                <div className="pt-3 border-t border-slate-100">
+                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><UserCog className="h-4 w-4" />{ar ? 'تعيين المسؤول' : 'Assign owner'}</h4>
+                  <select
+                    value={c.assignedToId ?? ''}
+                    onChange={(e) => assignMut.mutate(e.target.value || null)}
+                    disabled={assignMut.isPending}
+                    className={IN}
+                  >
+                    <option value="">{ar ? '— غير مُعيَّن —' : '— Unassigned —'}</option>
+                    {names.map((n) => <option key={n.id} value={n.id}>{ar ? n.nameAr || n.name : n.name}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Resolution note */}
+          <div className="mt-5 pt-4 border-t border-slate-100">
+            <h4 className="text-sm font-semibold mb-2">{ar ? 'ملاحظة الحل' : 'Resolution note'}</h4>
+            <textarea value={resolutionVal} onChange={(e) => setResolutionDraft(e.target.value)} rows={3} className={IN} />
             <Button
-              onClick={() => statusMut.mutate()}
-              disabled={!newStatus || !statusReason.trim() || statusMut.isPending}
-              className="mt-3 gap-2 bg-indigo-600 hover:bg-indigo-700"
+              variant="outline" className="mt-2"
+              onClick={() => resolutionMut.mutate(resolutionVal)}
+              disabled={resolutionDraft === null || resolutionMut.isPending}
             >
-              {statusMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{ar ? 'تطبيق' : 'Apply'}
+              {resolutionMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (ar ? 'حفظ الملاحظة' : 'Save note')}
             </Button>
           </div>
-
-          {/* Completion + assign */}
-          <div className={CARD + ' space-y-4'}>
-            <div>
-              <h3 className="text-sm font-semibold mb-3">{ar ? 'نسبة الإنجاز' : 'Completion'}</h3>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number" min={0} max={100} value={completionVal}
-                  onChange={(e) => setCompletionDraft(Math.max(0, Math.min(100, Number(e.target.value))))}
-                  className={IN + ' w-24'}
-                />
-                <span className="text-sm text-slate-400">%</span>
-                <Button
-                  variant="outline" onClick={() => completionMut.mutate(completionVal)}
-                  disabled={completionDraft === null || completionMut.isPending}
-                >
-                  {completionMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (ar ? 'حفظ' : 'Save')}
-                </Button>
-              </div>
-            </div>
-            {isManager && (
-              <div className="pt-3 border-t border-slate-100">
-                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1"><UserCog className="h-4 w-4" />{ar ? 'تعيين المسؤول' : 'Assign owner'}</h3>
-                <select
-                  value={c.assignedToId ?? ''}
-                  onChange={(e) => assignMut.mutate(e.target.value || null)}
-                  disabled={assignMut.isPending}
-                  className={IN}
-                >
-                  <option value="">{ar ? '— غير مُعيَّن —' : '— Unassigned —'}</option>
-                  {names.map((n) => <option key={n.id} value={n.id}>{ar ? n.nameAr || n.name : n.name}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
-        </div>
+        </CollapsibleCard>
       )}
 
-      {/* Resolution note */}
-      {canEdit && (
-        <div className={CARD + ' mb-5'}>
-          <h3 className="text-sm font-semibold mb-2">{ar ? 'ملاحظة الحل' : 'Resolution note'}</h3>
-          <textarea value={resolutionVal} onChange={(e) => setResolutionDraft(e.target.value)} rows={3} className={IN} />
-          <Button
-            variant="outline" className="mt-2"
-            onClick={() => resolutionMut.mutate(resolutionVal)}
-            disabled={resolutionDraft === null || resolutionMut.isPending}
-          >
-            {resolutionMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (ar ? 'حفظ الملاحظة' : 'Save note')}
-          </Button>
-        </div>
-      )}
-
+      {/* Stakeholders (collapsed) + Journal (open) — self-contained collapsible cards */}
       <ChallengeStakeholders challengeId={id} />
       <ChallengeJournal challengeId={id} />
 
-      {/* Status history */}
-      <div className={CARD}>
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-1"><History className="h-4 w-4" />{ar ? 'سجل الحالات' : 'Status history'}</h3>
+      {/* Status history — collapsed by default */}
+      <CollapsibleCard title={ar ? 'سجل الحالات' : 'Status history'} icon={<History className="h-4 w-4 text-slate-500" />} count={history.length}>
         {history.length === 0 && <p className="text-sm text-slate-400">{ar ? 'لا توجد تغييرات بعد' : 'No changes yet'}</p>}
         <ol className="space-y-3">
           {history.map((h) => (
@@ -248,7 +249,7 @@ export default function ChallengeDetailPage() {
             </li>
           ))}
         </ol>
-      </div>
+      </CollapsibleCard>
     </div>
   );
 }

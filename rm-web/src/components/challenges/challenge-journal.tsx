@@ -1,14 +1,15 @@
-  'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Pencil, MessageSquare, Sparkles } from 'lucide-react';
+import { Loader2, Pencil, MessageSquare, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { listUserNames } from '@/lib/tasks/queries';
 import { getMyOrgContext } from '@/lib/org/queries';
 import { getChallenge } from '@/lib/challenges/queries';
+import { CollapsibleCard } from '@/components/challenges/collapsible-card';
 import {
   listChallengeJournal, createChallengeJournalEntry, editChallengeJournalEntry,
   type ChallengeJournalEntry,
@@ -32,8 +33,6 @@ export function ChallengeJournal({ challengeId }: { challengeId: string }) {
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
-  const [aiLoading, setAiLoading] = useState<null | 'draft' | 'summary'>(null);
-  const [aiError, setAiError] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -75,43 +74,23 @@ export function ChallengeJournal({ challengeId }: { challengeId: string }) {
 
   if (!user) return null;
 
-  const isManager = user.role === 'admin' || user.role === 'super_admin';
+  // Mirrors migration 0035: creator / owner / same-org non-HM super. Stakeholder branch = slice 5.
+  const isOversightSuper = user.role === 'super_admin' && !user.isHigherManagement;
+  const canPost = !!c && (
+    c.createdById === user.id ||
+    c.assignedToId === user.id ||
+    isOversightSuper
+  );
+
   const startEdit = (e: ChallengeJournalEntry) => { setEditingId(e.id); setEditBody(e.body); };
 
-  async function runAi(mode: 'draft' | 'summary') {
-    setAiError(false);
-    setAiLoading(mode);
-    try {
-      const res = await fetch('/api/challenge-journal-assist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode,
-          notes: draft,
-          challengeTitle: c?.title ?? '',
-          challengeDescription: c?.description ?? '',
-          recentEntries: entries.map((e) => e.body),
-        }),
-      });
-      if (!res.ok) throw new Error('ai_failed');
-      const data = await res.json();
-      const next = ar ? (data.bodyAr || data.bodyEn || '') : (data.bodyEn || data.bodyAr || '');
-      if (!next) throw new Error('ai_empty');
-      setDraft(next);
-    } catch {
-      setAiError(true);
-    } finally {
-      setAiLoading(null);
-    }
-  }
-
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4 mb-5">
-      <h3 className="text-sm font-semibold mb-3 flex items-center gap-1">
-        <MessageSquare className="h-4 w-4" />{ar ? 'سجل المتابعة' : 'Journal'}
-        <span className="text-slate-400 font-normal">({entries.length})</span>
-      </h3>
-
+    <CollapsibleCard
+      title={ar ? 'سجل المتابعة' : 'Journal'}
+      icon={<MessageSquare className="h-4 w-4 text-slate-500" />}
+      count={entries.length}
+      defaultOpen
+    >
       {journalQ.isLoading && <p className="text-sm text-slate-400">{ar ? 'جارٍ التحميل…' : 'Loading…'}</p>}
       {!journalQ.isLoading && entries.length === 0 && (
         <p className="text-sm text-slate-400 mb-3">{ar ? 'لا توجد متابعات بعد.' : 'No entries yet.'}</p>
@@ -121,7 +100,7 @@ export function ChallengeJournal({ challengeId }: { challengeId: string }) {
         {entries.map((e) => {
           const mine = e.authorId === user.id;
           const ageMs = now - new Date(e.createdAt).getTime();
-          const editable = mine && e.editedAt === null && ageMs < HOUR;
+          const editable = mine && canPost && e.editedAt === null && ageMs < HOUR;
           const remainingMin = Math.max(0, Math.ceil((HOUR - ageMs) / 60000));
           const authorName = ar ? e.authorNameAr || e.authorName : e.authorName;
           const authorDept = ar ? e.authorDepartmentAr || e.authorDepartment : e.authorDepartment;
@@ -161,37 +140,28 @@ export function ChallengeJournal({ challengeId }: { challengeId: string }) {
         })}
       </ol>
 
-      {/* Composer */}
-      <div className="border-t border-slate-100 pt-3">
-        {isManager && (
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className="text-xs text-slate-400">{ar ? 'مساعدة الذكاء الاصطناعي:' : 'AI assist:'}</span>
-            <Button variant="outline" onClick={() => runAi('draft')} disabled={!draft.trim() || aiLoading !== null} className="gap-1 h-8 px-2 text-xs">
-              {aiLoading === 'draft' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-              {ar ? 'تحسين الملاحظات' : 'Polish notes'}
-            </Button>
-            <Button variant="outline" onClick={() => runAi('summary')} disabled={aiLoading !== null} className="gap-1 h-8 px-2 text-xs">
-              {aiLoading === 'summary' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-              {ar ? 'تلخيص الحالة' : 'Summarize case'}
+      {canPost ? (
+        <div className="border-t border-slate-100 pt-3">
+          <textarea
+            value={draft} onChange={(e) => setDraft(e.target.value)} rows={3}
+            dir={ar ? 'rtl' : 'ltr'}
+            placeholder={ar ? 'أضف متابعة…' : 'Add a follow-up…'}
+            className={IN}
+          />
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-slate-400">{ar ? 'يمكن تعديل المتابعة مرة واحدة خلال ساعة من نشرها.' : 'A comment can be edited once, within an hour of posting.'}</p>
+            <Button onClick={() => postMut.mutate()} disabled={!draft.trim() || postMut.isPending} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+              {postMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{ar ? 'نشر' : 'Post'}
             </Button>
           </div>
-        )}
-        {aiError && <p className="text-xs text-red-600 mb-2">{ar ? 'تعذّر إنشاء المسودة. حاول مجددًا.' : 'Could not generate a draft. Please try again.'}</p>}
-
-        <textarea
-          value={draft} onChange={(e) => setDraft(e.target.value)} rows={3}
-          dir={ar ? 'rtl' : 'ltr'}
-          placeholder={ar ? 'أضف متابعة…' : 'Add a follow-up…'}
-          className={IN}
-        />
-        <div className="flex items-center justify-between mt-2">
-          <p className="text-xs text-slate-400">{ar ? 'يمكن تعديل المتابعة مرة واحدة خلال ساعة من نشرها.' : 'A comment can be edited once, within an hour of posting.'}</p>
-          <Button onClick={() => postMut.mutate()} disabled={!draft.trim() || postMut.isPending} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-            {postMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{ar ? 'نشر' : 'Post'}
-          </Button>
+          {postMut.isError && <p className="text-xs text-red-600 mt-1">{(postMut.error as Error).message}</p>}
         </div>
-        {postMut.isError && <p className="text-xs text-red-600 mt-1">{(postMut.error as Error).message}</p>}
-      </div>
-    </div>
+      ) : (
+        <div className="border-t border-slate-100 pt-3 flex items-center gap-2 text-xs text-slate-400">
+          <Lock className="h-3 w-3" />
+          {ar ? 'التعليق متاح لمنشئ التحدي والمسؤول المعيَّن والإشراف بالوكالة فقط.' : 'Only the challenge creator, assigned owner, and deputyship oversight can comment.'}
+        </div>
+      )}
+    </CollapsibleCard>
   );
 }

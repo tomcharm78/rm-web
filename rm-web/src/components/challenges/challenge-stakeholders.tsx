@@ -6,8 +6,9 @@ import { Users, Plus, Pencil, Trash2, Loader2, X, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
+import { CollapsibleCard } from '@/components/challenges/collapsible-card';
 import {
-  listChallengeStakeholders, createChallengeStakeholder,
+  listChallengeStakeholders, createChallengeStakeholder,  
   updateChallengeStakeholder, deleteChallengeStakeholder,
   type ChallengeStakeholder, type StakeholderType,
 } from '@/lib/challenges/stakeholders';
@@ -61,19 +62,16 @@ export function ChallengeStakeholders({ challengeId }: { challengeId: string }) 
   const openEdit = (s: ChallengeStakeholder) => { setEditing(s); setModalOpen(true); };
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4 mb-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold flex items-center gap-1">
-          <Users className="h-4 w-4" />{ar ? 'الأطراف المعنية' : 'Stakeholders'}
-          <span className="text-slate-400 font-normal">({stakeholders.length})</span>
-        </h3>
-        {isManager && (
-          <Button onClick={openAdd} variant="outline" className="gap-1 h-8 px-2 text-xs">
-            <Plus className="h-3 w-3" />{ar ? 'إضافة' : 'Add'}
-          </Button>
-        )}
-      </div>
-
+    <CollapsibleCard
+      title={ar ? 'الأطراف المعنية' : 'Stakeholders'}
+      icon={<Users className="h-4 w-4 text-slate-500" />}
+      count={stakeholders.length}
+      headerActions={isManager ? (
+        <Button onClick={openAdd} variant="outline" className="gap-1 h-8 px-2 text-xs">
+          <Plus className="h-3 w-3" />{ar ? 'إضافة' : 'Add'}
+        </Button>
+      ) : undefined}
+    >
       {listQ.isLoading && <p className="text-sm text-slate-400">{ar ? 'جارٍ التحميل…' : 'Loading…'}</p>}
       {!listQ.isLoading && stakeholders.length === 0 && (
         <p className="text-sm text-slate-400">{ar ? 'لم تُسجَّل أطراف بعد.' : 'No stakeholders registered yet.'}</p>
@@ -127,7 +125,7 @@ export function ChallengeStakeholders({ challengeId }: { challengeId: string }) 
           onSaved={() => { setModalOpen(false); refresh(); }}
         />
       )}
-    </div>
+    </CollapsibleCard>
   );
 }
 
