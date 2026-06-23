@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Plus, Loader2, X } from 'lucide-react';
+import { AlertTriangle, Plus, Loader2, X, Pencil, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { listUserNames } from '@/lib/tasks/queries';
-import { listChallenges, createChallenge, listChallengeDomains } from '@/lib/challenges/queries';
-import type { ChallengeStatus, ChallengeType, ChallengePriority } from '@/types/challenge';
+import {
+  listChallenges, createChallenge, updateChallenge, archiveChallenge, listChallengeDomains,
+} from '@/lib/challenges/queries';
+import type { Challenge, ChallengeStatus, ChallengeType, ChallengePriority } from '@/types/challenge';
 
 const FILTER_CLS = 'h-9 rounded-md border border-slate-200 bg-white px-3 text-sm';
 const LBL = 'text-xs text-slate-600';
@@ -61,6 +63,7 @@ export default function ChallengesPage() {
   const [fPriority, setFPriority] = useState('');
   const [fDomain, setFDomain] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
+  const [editing, setEditing] = useState<Challenge | null>(null);
 
   const challengesQ = useQuery({
     queryKey: ['challenges', fStatus, fType, fPriority, fDomain],
@@ -77,6 +80,14 @@ export default function ChallengesPage() {
   const challenges = challengesQ.data ?? [];
   const domains = domainsQ.data ?? [];
   const names = namesQ.data ?? [];
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ['challenges'] });
+
+  const archiveMut = useMutation({
+    mutationFn: (id: string) => archiveChallenge(id),
+    onSuccess: refresh,
+  });
+
   const nameOf = (id?: string | null) => {
     if (!id) return '—';
     const u = names.find((n) => n.id === id);
@@ -89,6 +100,8 @@ export default function ChallengesPage() {
   };
 
   if (!user) return null;
+  const isManager = user.role === 'admin' || user.role === 'super_admin';
+  const isSuper = user.role === 'super_admin';
 
   return (
     <div className="p-6 lg:p-8">
@@ -134,24 +147,42 @@ export default function ChallengesPage() {
               <th className="px-4 py-3">{ar ? 'المجال' : 'Domain'}</th>
               <th className="px-4 py-3">{ar ? 'المسؤول' : 'Owner'}</th>
               <th className="px-4 py-3">%</th>
+              {isManager && <th className="px-4 py-3 text-right">{ar ? 'إجراءات' : 'Actions'}</th>}
             </tr>
           </thead>
           <tbody>
             {challengesQ.isLoading && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">{ar ? 'جارٍ التحميل…' : 'Loading…'}</td></tr>
+              <tr><td colSpan={isManager ? 8 : 7} className="px-4 py-6 text-center text-slate-400">{ar ? 'جارٍ التحميل…' : 'Loading…'}</td></tr>
             )}
             {!challengesQ.isLoading && challenges.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">{ar ? 'لا توجد تحديات' : 'No challenges yet'}</td></tr>
+              <tr><td colSpan={isManager ? 8 : 7} className="px-4 py-6 text-center text-slate-400">{ar ? 'لا توجد تحديات' : 'No challenges yet'}</td></tr>
             )}
             {challenges.map((c) => (
-              <tr key={c.id} onClick={() => router.push('/challenges/' + c.id)} className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer">
-                <td className="px-4 py-3 font-medium text-slate-800">{ar ? c.titleAr || c.title : c.title}</td>
-                <td className="px-4 py-3 text-slate-600">{typeLabel(c.type, ar)}</td>
-                <td className="px-4 py-3 text-slate-600">{priorityLabel(c.priority, ar)}</td>
-                <td className="px-4 py-3"><span className={'rounded px-2 py-0.5 text-xs ' + statusColor(c.status)}>{statusLabel(c.status, ar)}</span></td>
-                <td className="px-4 py-3 text-slate-600">{domainOf(c.domainId)}</td>
-                <td className="px-4 py-3 text-slate-600">{nameOf(c.assignedToId)}</td>
-                <td className="px-4 py-3 text-slate-600">{c.completionPercentage}%</td>
+              <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-4 py-3 font-medium text-slate-800 cursor-pointer" onClick={() => router.push('/challenges/' + c.id)}>{ar ? c.titleAr || c.title : c.title}</td>
+                <td className="px-4 py-3 text-slate-600 cursor-pointer" onClick={() => router.push('/challenges/' + c.id)}>{typeLabel(c.type, ar)}</td>
+                <td className="px-4 py-3 text-slate-600 cursor-pointer" onClick={() => router.push('/challenges/' + c.id)}>{priorityLabel(c.priority, ar)}</td>
+                <td className="px-4 py-3 cursor-pointer" onClick={() => router.push('/challenges/' + c.id)}><span className={'rounded px-2 py-0.5 text-xs ' + statusColor(c.status)}>{statusLabel(c.status, ar)}</span></td>
+                <td className="px-4 py-3 text-slate-600 cursor-pointer" onClick={() => router.push('/challenges/' + c.id)}>{domainOf(c.domainId)}</td>
+                <td className="px-4 py-3 text-slate-600 cursor-pointer" onClick={() => router.push('/challenges/' + c.id)}>{nameOf(c.assignedToId)}</td>
+                <td className="px-4 py-3 text-slate-600 cursor-pointer" onClick={() => router.push('/challenges/' + c.id)}>{c.completionPercentage}%</td>
+                {isManager && (
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => setEditing(c)} className="text-slate-400 hover:text-indigo-600 p-1" title={ar ? 'تعديل' : 'Edit'}>
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      {isSuper && (
+                        <button
+                          onClick={() => { if (confirm(ar ? 'أرشفة هذا التحدي؟ سيُخفى من القائمة.' : 'Archive this challenge? It will be hidden from the list.')) archiveMut.mutate(c.id); }}
+                          className="text-slate-400 hover:text-amber-600 p-1" title={ar ? 'أرشفة' : 'Archive'}
+                        >
+                          <Archive className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -159,35 +190,57 @@ export default function ChallengesPage() {
       </div>
 
       {reportOpen && (
-        <ReportModal
+        <ChallengeModal
           domains={domains}
           ar={ar}
+          editing={null}
           onClose={() => setReportOpen(false)}
-          onCreated={() => { setReportOpen(false); qc.invalidateQueries({ queryKey: ['challenges'] }); }}
+          onSaved={() => { setReportOpen(false); refresh(); }}
+        />
+      )}
+      {editing && (
+        <ChallengeModal
+          domains={domains}
+          ar={ar}
+          editing={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); refresh(); }}
         />
       )}
     </div>
   );
 }
 
-function ReportModal({ domains, ar, onClose, onCreated }: {
+function ChallengeModal({ domains, ar, editing, onClose, onSaved }: {
   domains: { id: string; name: string; nameAr: string }[];
-  ar: boolean; onClose: () => void; onCreated: () => void;
+  ar: boolean;
+  editing: Challenge | null;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [titleAr, setTitleAr] = useState('');
-  const [desc, setDesc] = useState('');
-  const [descAr, setDescAr] = useState('');
-  const [type, setType] = useState<ChallengeType | ''>('');
-  const [priority, setPriority] = useState<ChallengePriority>('medium');
-  const [domainId, setDomainId] = useState('');
+  const isEdit = !!editing;
+  const [title, setTitle] = useState(editing?.title ?? '');
+  const [titleAr, setTitleAr] = useState(editing?.titleAr ?? '');
+  const [desc, setDesc] = useState(editing?.description ?? '');
+  const [descAr, setDescAr] = useState(editing?.descriptionAr ?? '');
+  const [type, setType] = useState<ChallengeType | ''>(editing?.type ?? '');
+  const [priority, setPriority] = useState<ChallengePriority>(editing?.priority ?? 'medium');
+  const [domainId, setDomainId] = useState(editing?.domainId ?? '');
 
-  const createMut = useMutation({
-    mutationFn: () => createChallenge({
-      title, titleAr, description: desc, descriptionAr: descAr,
-      type: type as ChallengeType, priority, domainId,
-    }),
-    onSuccess: onCreated,
+  const saveMut = useMutation({
+    mutationFn: () => {
+      if (isEdit) {
+        return updateChallenge(editing!.id, {
+          title, titleAr, description: desc, descriptionAr: descAr,
+          type: type as ChallengeType, priority, domainId,
+        });
+      }
+      return createChallenge({
+        title, titleAr, description: desc, descriptionAr: descAr,
+        type: type as ChallengeType, priority, domainId,
+      });
+    },
+    onSuccess: onSaved,
   });
   const valid = title.trim() && titleAr.trim() && type && domainId;
 
@@ -195,7 +248,7 @@ function ReportModal({ domains, ar, onClose, onCreated }: {
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto" onMouseDown={onClose}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg my-8" onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-          <span className="font-semibold">{ar ? 'رفع تحدٍّ' : 'Report a challenge'}</span>
+          <span className="font-semibold">{isEdit ? (ar ? 'تعديل تحدٍّ' : 'Edit challenge') : (ar ? 'رفع تحدٍّ' : 'Report a challenge')}</span>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
         </div>
         <div className="px-4 py-3 space-y-3">
@@ -226,12 +279,12 @@ function ReportModal({ domains, ar, onClose, onCreated }: {
               </select>
             </div>
           </div>
-          {createMut.isError && <p className="text-xs text-red-600">{(createMut.error as Error)?.message}</p>}
+          {saveMut.isError && <p className="text-xs text-red-600">{(saveMut.error as Error)?.message}</p>}
         </div>
         <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-200 bg-slate-50">
-          <Button variant="outline" onClick={onClose} disabled={createMut.isPending}>{ar ? 'إلغاء' : 'Cancel'}</Button>
-          <Button onClick={() => createMut.mutate()} disabled={!valid || createMut.isPending} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-            {createMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{ar ? 'رفع' : 'Submit'}
+          <Button variant="outline" onClick={onClose} disabled={saveMut.isPending}>{ar ? 'إلغاء' : 'Cancel'}</Button>
+          <Button onClick={() => saveMut.mutate()} disabled={!valid || saveMut.isPending} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+            {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{isEdit ? (ar ? 'حفظ' : 'Save') : (ar ? 'رفع' : 'Submit')}
           </Button>
         </div>
       </div>

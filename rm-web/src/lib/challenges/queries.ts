@@ -29,7 +29,7 @@ function mapChallenge(r: any): Challenge {
 
 export async function listChallenges(f: ChallengeFilters = {}): Promise<Challenge[]> {
   const supabase = createClient();
-  let q = supabase.from('challenges').select('*').is('deleted_at', null)
+  let q = supabase.from('challenges').select('*').is('deleted_at', null).is('archived_at', null)
     .order('created_at', { ascending: false });
   if (f.status) q = q.eq('status', f.status);
   if (f.type) q = q.eq('type', f.type);
@@ -135,4 +135,12 @@ export async function listChallengeSubDomains(): Promise<{ id: string; domainId:
   if (error) throw new Error(error.message);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((d: any) => ({ id: d.id, domainId: d.domain_id, name: d.name, nameAr: d.name_ar ?? '' }));
+}
+export async function archiveChallenge(id: string): Promise<void> {
+  const supabase = createClient();
+  const me = await uid();
+  const { error } = await supabase.from('challenges')
+    .update({ archived_at: new Date().toISOString(), archived_by_id: me, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
 }
