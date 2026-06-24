@@ -46,6 +46,8 @@ export default async function DashboardLayout({
   }
 
   const appUser = dbUserToUser(appUserRow);
-
+  if (appUser.role === 'stakeholder') {
+    redirect('/portal');
+  }
   return <DashboardShell user={appUser}>{children}</DashboardShell>;
 }
