@@ -53,11 +53,12 @@ export function ChallengeJournal({ challengeId }: { challengeId: string }) {
 
   const postMut = useMutation({
     mutationFn: () => {
-      const meRow = names.find((n) => n.id === user!.id);
-      const nameEn = meRow?.name || user!.name || '';
-      const nameAr = meRow?.nameAr || user!.name || '';
-      const deptEn = org?.departmentName ?? org?.orgName ?? '';
-      const deptAr = org?.departmentNameAr ?? org?.orgNameAr ?? '';
+      const isStakeholderAuthor = user!.role === 'stakeholder';
+      const meRow = isStakeholderAuthor ? undefined : names.find((n) => n.id === user!.id);
+      const nameEn = isStakeholderAuthor ? (user!.name || '') : (meRow?.name || user!.name || '');
+      const nameAr = isStakeholderAuthor ? (user!.name || '') : (meRow?.nameAr || user!.name || '');
+      const deptEn = isStakeholderAuthor ? (ar ? 'طرف معني خارجي' : 'External stakeholder') : (org?.departmentName ?? org?.orgName ?? '');
+      const deptAr = isStakeholderAuthor ? 'طرف معني خارجي' : (org?.departmentNameAr ?? org?.orgNameAr ?? '');
       return createChallengeJournalEntry({
         challengeId, body: draft,
         authorName: nameEn, authorNameAr: nameAr,
