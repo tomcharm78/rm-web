@@ -76,10 +76,12 @@ export function ChallengeJournal({ challengeId }: { challengeId: string }) {
 
   // Mirrors migration 0035: creator / owner / same-org non-HM super. Stakeholder branch = slice 5.
   const isOversightSuper = user.role === 'super_admin' && !user.isHigherManagement;
+  const isStakeholder = user.role === 'stakeholder';
   const canPost = !!c && (
     c.createdById === user.id ||
     c.assignedToId === user.id ||
-    isOversightSuper
+    isOversightSuper ||
+    isStakeholder
   );
 
   const startEdit = (e: ChallengeJournalEntry) => { setEditingId(e.id); setEditBody(e.body); };
