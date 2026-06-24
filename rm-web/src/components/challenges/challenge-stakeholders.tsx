@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Trash2, Loader2, X, Mail, Phone, Search } from 'lucide-react';
+import { Users, Plus, Trash2, Loader2, X, Mail, Phone, Search, KeyRound, Copy, Check, ShieldOff, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
@@ -12,6 +12,9 @@ import type { Contact, ContactType } from '@/types/contact';
 import {
   listChallengeStakeholders, linkContactToChallenge, deleteChallengeStakeholder,
 } from '@/lib/challenges/stakeholders';
+import {
+  listChallengeAccess, revokeAccess, generateStakeholderAccess, type ChallengeAccess,
+} from '@/lib/challenges/stakeholder-access';
 
 const IN = 'w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const LBL = 'text-xs text-slate-500 mb-1 block';
@@ -33,6 +36,26 @@ function typeColor(t: string) {
   }
 }
 
+function CopyBtn({ value, ar }: { value: string; ar: boolean }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      onClick={async () => { await navigator.clipboard.writeText(value); setDone(true); setTimeout(() => setDone(false), 1500); }}
+      className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
+    >
+      {done ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}{done ? (ar ? 'تم النسخ' : 'Copied') : (ar ? 'نسخ' : 'Copy')}
+    </button>
+  );
+}
+
+function grantErrorMessage(code: string, ar: boolean): string {
+  const m: Record<string, [string, string]> = {
+    contact_email_required: ['An email is required to grant access.', 'يلزم بريد إلكتروني لمنح الوصول.'],
+    email_belongs_to_staff: ['That email belongs to a staff account — cannot grant stakeholder access.', 'هذا البريد لحساب داخلي — لا يمكن منح وصول طرف خارجي.'],
+  };
+  return m[code] ? (ar ? m[code][1] : m[code][0]) : (ar ? 'تعذّر منح الوصول.' : 'Could not grant access.');
+}
+
 export function ChallengeStakeholders({ challengeId }: { challengeId: string }) {
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -40,23 +63,42 @@ export function ChallengeStakeholders({ challengeId }: { challengeId: string }) 
   const qc = useQueryClient();
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [creds, setCreds] = useState<null | { loginUrl: string; username: string; tempPassword: string | null; isNewAccount: boolean }>(null);
+
+  const isManager = (user?.role === 'admin' || user?.role === 'super_admin');
 
   const listQ = useQuery({
     queryKey: ['challenge-stakeholders', challengeId],
     queryFn: () => listChallengeStakeholders(challengeId),
   });
+  const accessQ = useQuery({
+    queryKey: ['challenge-access', challengeId],
+    queryFn: () => listChallengeAccess(challengeId),
+    enabled: isManager,
+  });
   const stakeholders = listQ.data ?? [];
+  const access = accessQ.data ?? [];
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ['challenge-stakeholders', challengeId] });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['challenge-stakeholders', challengeId] });
+    qc.invalidateQueries({ queryKey: ['challenge-access', challengeId] });
+  };
 
-  const removeMut = useMutation({
-    mutationFn: (id: string) => deleteChallengeStakeholder(id),
-    onSuccess: refresh,
+  const removeMut = useMutation({ mutationFn: (id: string) => deleteChallengeStakeholder(id), onSuccess: refresh });
+  const revokeMut = useMutation({ mutationFn: (id: string) => revokeAccess(id), onSuccess: refresh });
+  const grantMut = useMutation({
+    mutationFn: (contactId: string) => generateStakeholderAccess(challengeId, contactId),
+    onSuccess: (res) => { setCreds(res); refresh(); },
   });
 
   if (!user) return null;
-  const isManager = user.role === 'admin' || user.role === 'super_admin';
 
+  const activeAccessFor = (email: string | null): ChallengeAccess | undefined => {
+    if (!email) return undefined;
+    return access.find((a) => a.stakeholderEmail && a.stakeholderEmail.toLowerCase() === email.toLowerCase() && a.status === 'active');
+  };
+
+  const grantError = grantMut.isError ? (grantMut.error as Error).message : '';
   return (
     <CollapsibleCard
       title={ar ? 'الأطراف المعنية' : 'Stakeholders'}
@@ -73,38 +115,85 @@ export function ChallengeStakeholders({ challengeId }: { challengeId: string }) 
         <p className="text-sm text-slate-400">{ar ? 'لم تُربط أطراف بعد.' : 'No stakeholders linked yet.'}</p>
       )}
 
-      <ul className="space-y-2">
-        {stakeholders.map((s) => (
-          <li key={s.id} className="rounded-md border border-slate-100 bg-slate-50/60 p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-slate-800">{ar ? s.nameAr || s.name : s.name}</span>
-                  <span className={'rounded px-1.5 py-0.5 text-xs ' + typeColor(s.type)}>{typeLabel(s.type, ar)}</span>
-                </div>
-                {(s.linkRole || s.organization) && (
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {[s.linkRole, s.organization].filter(Boolean).join(ar ? ' — ' : ' · ')}
-                  </p>
-                )}
-                {s.email && (
-                  <a href={'mailto:' + s.email} className="text-xs text-indigo-600 hover:underline inline-flex items-center gap-1 mt-0.5">
-                    <Mail className="h-3 w-3" />{s.email}
-                  </a>
-                )}
-                {s.phone && <p className="text-xs text-slate-500 mt-0.5 inline-flex items-center gap-1"><Phone className="h-3 w-3" />{s.phone}</p>}
-              </div>
-              {isManager && (
-                <button
-                  onClick={() => { if (confirm(ar ? 'إلغاء ربط هذا الطرف؟ (يبقى في الدليل)' : 'Detach this stakeholder? (stays in the directory)')) removeMut.mutate(s.id); }}
-                  className="text-slate-400 hover:text-red-600 p-1 shrink-0" title={ar ? 'إلغاء الربط' : 'Detach'}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
+      {creds && (
+        <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-semibold text-emerald-800">{ar ? 'بيانات الدخول' : 'Access credentials'}</span>
+            <button onClick={() => setCreds(null)} className="text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
+          </div>
+          {creds.isNewAccount ? (
+            <div className="space-y-1 text-slate-700">
+              <div className="flex items-center justify-between gap-2"><span>{ar ? 'الرابط:' : 'Login link:'} <span className="font-mono text-xs">{creds.loginUrl}</span></span><CopyBtn value={creds.loginUrl} ar={ar} /></div>
+              <div className="flex items-center justify-between gap-2"><span>{ar ? 'المستخدم:' : 'Username:'} <span className="font-mono text-xs">{creds.username}</span></span><CopyBtn value={creds.username} ar={ar} /></div>
+              <div className="flex items-center justify-between gap-2"><span>{ar ? 'كلمة المرور المؤقتة:' : 'Temp password:'} <span className="font-mono text-xs">{creds.tempPassword}</span></span><CopyBtn value={creds.tempPassword ?? ''} ar={ar} /></div>
+              <p className="text-xs text-emerald-700 mt-1">{ar ? 'انسخ هذه البيانات الآن وأرسلها للطرف المعني — لن تظهر كلمة المرور مرة أخرى.' : 'Copy and send these now — the password won’t be shown again.'}</p>
             </div>
-          </li>
-        ))}
+          ) : (
+            <div className="space-y-1 text-slate-700">
+              <div className="flex items-center justify-between gap-2"><span>{ar ? 'الرابط:' : 'Login link:'} <span className="font-mono text-xs">{creds.loginUrl}</span></span><CopyBtn value={creds.loginUrl} ar={ar} /></div>
+              <p className="text-xs text-emerald-700 mt-1">{ar ? 'لهذا الشخص حساب بالفعل — أرسل له الرابط ليدخل ببياناته الحالية.' : 'This person already has an account — send the link; they sign in with their existing credentials.'}</p>
+            </div>
+          )}
+        </div>
+      )}
+      {grantError && <p className="text-xs text-red-600 mb-2">{grantErrorMessage(grantError, ar)}</p>}
+
+      <ul className="space-y-2">
+        {stakeholders.map((s) => {
+          const acc = activeAccessFor(s.email);
+          return (
+            <li key={s.id} className="rounded-md border border-slate-100 bg-slate-50/60 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-slate-800">{ar ? s.nameAr || s.name : s.name}</span>
+                    <span className={'rounded px-1.5 py-0.5 text-xs ' + typeColor(s.type)}>{typeLabel(s.type, ar)}</span>
+                    {acc && (
+                      <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs bg-teal-100 text-teal-700">
+                        <Clock className="h-3 w-3" />{ar ? `وصول فعّال · ${acc.daysLeft} يوم` : `Access · ${acc.daysLeft}d left`}
+                      </span>
+                    )}
+                  </div>
+                  {(s.linkRole || s.organization) && (
+                    <p className="text-xs text-slate-500 mt-0.5">{[s.linkRole, s.organization].filter(Boolean).join(ar ? ' — ' : ' · ')}</p>
+                  )}
+                  {s.email && <a href={'mailto:' + s.email} className="text-xs text-indigo-600 hover:underline inline-flex items-center gap-1 mt-0.5"><Mail className="h-3 w-3" />{s.email}</a>}
+                  {s.phone && <p className="text-xs text-slate-500 mt-0.5 inline-flex items-center gap-1"><Phone className="h-3 w-3" />{s.phone}</p>}
+                </div>
+
+                {isManager && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {acc ? (
+                      <button
+                        onClick={() => { if (confirm(ar ? 'إلغاء وصول هذا الطرف؟' : 'Revoke this stakeholder’s access?')) revokeMut.mutate(acc.id); }}
+                        className="text-slate-400 hover:text-amber-600 p-1" title={ar ? 'إلغاء الوصول' : 'Revoke access'}
+                      >
+                        <ShieldOff className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { if (!s.contactId) return; grantMut.mutate(s.contactId); }}
+                        disabled={!s.contactId || (grantMut.isPending && grantMut.variables === s.contactId)}
+                        className="text-slate-400 hover:text-indigo-600 p-1 disabled:opacity-50" title={ar ? 'منح وصول' : 'Grant access'}
+                      >
+                        {grantMut.isPending && grantMut.variables === s.contactId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { if (confirm(ar ? 'إلغاء ربط هذا الطرف؟ (يبقى في الدليل)' : 'Detach this stakeholder? (stays in the directory)')) removeMut.mutate(s.id); }}
+                      className="text-slate-400 hover:text-red-600 p-1" title={ar ? 'إلغاء الربط' : 'Detach'}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {isManager && !acc && !s.email && (
+                <p className="text-[11px] text-amber-600 mt-1">{ar ? 'يلزم بريد إلكتروني لمنح الوصول — عدّل جهة الاتصال في الدليل.' : 'An email is required to grant access — edit the contact in the directory.'}</p>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       {modalOpen && (
@@ -127,7 +216,6 @@ function LinkStakeholderModal({ challengeId, ar, onClose, onSaved }: {
   const [selectedId, setSelectedId] = useState<string>('');
   const [linkRole, setLinkRole] = useState('');
 
-  // quick-add fields
   const [name, setName] = useState('');
   const [nameAr, setNameAr] = useState('');
   const [org, setOrg] = useState('');
@@ -152,9 +240,7 @@ function LinkStakeholderModal({ challengeId, ar, onClose, onSaved }: {
     mutationFn: async () => {
       let contactId = selectedId;
       if (tab === 'new') {
-        const created: Contact = await createContact({
-          name, nameAr, email, organization: org, role, phone, type,
-        });
+        const created: Contact = await createContact({ name, nameAr, email, organization: org, role, phone, type });
         contactId = created.id;
       }
       if (!contactId) throw new Error(ar ? 'اختر جهة اتصال' : 'Select a contact');
@@ -194,11 +280,7 @@ function LinkStakeholderModal({ challengeId, ar, onClose, onSaved }: {
                 {contactsQ.isLoading && <p className="p-3 text-sm text-slate-400">{ar ? 'جارٍ التحميل…' : 'Loading…'}</p>}
                 {!contactsQ.isLoading && filtered.length === 0 && <p className="p-3 text-sm text-slate-400">{ar ? 'لا نتائج' : 'No results'}</p>}
                 {filtered.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedId(c.id)}
-                    className={'w-full text-start px-3 py-2 text-sm hover:bg-slate-50 ' + (selectedId === c.id ? 'bg-indigo-50' : '')}
-                  >
+                  <button key={c.id} onClick={() => setSelectedId(c.id)} className={'w-full text-start px-3 py-2 text-sm hover:bg-slate-50 ' + (selectedId === c.id ? 'bg-indigo-50' : '')}>
                     <span className="font-medium text-slate-800">{ar ? c.nameAr || c.name : c.name}</span>
                     {(c.role || c.organization) && <span className="text-slate-500"> — {[c.role, c.organization].filter(Boolean).join(' · ')}</span>}
                     {c.email && <span className="block text-xs text-slate-400">{c.email}</span>}
