@@ -22,7 +22,8 @@ import { useState, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Building2,         // Investors
+  Building2,
+  BookUser,         // Investors
   LayoutDashboard,   // Home
   ClipboardList,     // Tasks
   Trophy,            // Challenges
@@ -61,6 +62,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'home', href: '/', icon: LayoutDashboard, labelEn: 'Dashboard', labelAr: 'الرئيسية', enabled: true },
   { id: 'investors', href: '/investors', icon: Building2, labelEn: 'Investors', labelAr: 'المستثمرون', enabled: true },
+  { id: 'contacts', href: '/contacts', icon: BookUser, labelEn: 'Contacts', labelAr: 'جهات الاتصال', enabled: true },
   { id: 'tasks', href: '/tasks', icon: ClipboardList, labelEn: 'Tasks', labelAr: 'المهام', enabled: true },
   { id: 'challenges', href: '/challenges', icon: Trophy, labelEn: 'Challenges', labelAr: 'التحديات', enabled: true },
   { id: 'sessions', href: '/sessions', icon: CalendarClock, labelEn: 'Sessions', labelAr: 'الجلسات', enabled: true },

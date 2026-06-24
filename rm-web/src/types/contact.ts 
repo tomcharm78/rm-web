@@ -1,0 +1,56 @@
+// Unified directory entry. Two sources:
+//  - 'contact'  : a row in public.contacts (editable; MOH-internal / external people)
+//  - 'investor' : a representative read live from public.investors (read-only here;
+//                 edited in the Investors module, never copied into contacts)
+
+export type ContactType = 'internal_moh' | 'external' | 'government' | 'private' | 'other';
+
+export type Contact = {
+  id: string;
+  name: string;
+  nameAr: string;
+  email: string | null;
+  organization: string;
+  role: string;
+  phone: string;
+  type: ContactType;
+  createdById: string;
+  editedById: string | null;
+  createdAt: string;
+};
+
+export type ContactCreateInput = {
+  name: string;
+  nameAr?: string;
+  email?: string | null;
+  organization?: string;
+  role?: string;
+  phone?: string;
+  type?: ContactType;
+};
+
+export type ContactUpdateInput = Partial<{
+  name: string;
+  nameAr: string;
+  email: string | null;
+  organization: string;
+  role: string;
+  phone: string;
+  type: ContactType;
+}>;
+
+// What the directory UI renders — a contact OR an investor rep, normalized.
+export type DirectoryEntry = {
+  source: 'contact' | 'investor';
+  id: string;            // contact id, or investor id (prefixed) for keys
+  name: string;
+  nameAr: string;
+  email: string | null;
+  organization: string;  // contact.organization, or investor company name
+  role: string;          // contact.role, or investor rep position
+  phone: string;
+  type: ContactType | 'investor';
+  editable: boolean;     // true for contacts, false for investor reps
+  contact?: Contact;     // present when source === 'contact'
+  investorId?: string;   // present when source === 'investor' (deep-link to investor)
+};
