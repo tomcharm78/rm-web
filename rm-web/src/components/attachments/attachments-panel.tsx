@@ -56,7 +56,7 @@ export function AttachmentsPanel({
   const listQ = useQuery({
     queryKey: ['attachments', entityType, entityId],
     queryFn: () => listAttachments(entityType, entityId),
-    enabled: !isStakeholder && !!orgId && enabledQ.data === true,
+    enabled: !isStakeholder && !!orgId,
   });
 
   const enabled = enabledQ.data === true;
@@ -85,8 +85,9 @@ export function AttachmentsPanel({
 
   // org switch OFF (or org id unresolved) → don't render the panel at all
   if (!orgId) return null;
-  if (enabledQ.isLoading) return null;
-  if (!enabled) return null;
+  if (enabledQ.isLoading || listQ.isLoading) return null;
+  const hasItems = (listQ.data ?? []).length > 0;
+  if (!enabled && !hasItems) return null;
 
   const cap = sizeCapForRole(user.role);
   const canDelete = (att: Attachment) =>
@@ -113,7 +114,8 @@ export function AttachmentsPanel({
         <span className="text-xs text-slate-400">({items.length})</span>
       </div>
 
-      {/* upload row */}
+      {/* upload row — only when enabled */}
+      {enabled && (
       <div className="rounded-md border border-dashed border-slate-200 p-3 mb-3">
         <input
           ref={fileRef} type="file" accept={accept}
@@ -151,7 +153,7 @@ export function AttachmentsPanel({
         </p>
         {uploadError && <p className="text-xs text-red-600 mt-1">{uploadErrorMessage(uploadError, ar)}</p>}
       </div>
-
+      )}
       {/* list */}
       {listQ.isLoading && <p className="text-sm text-slate-400">{ar ? 'جارٍ التحميل…' : 'Loading…'}</p>}
       {!listQ.isLoading && items.length === 0 && (

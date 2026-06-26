@@ -126,11 +126,11 @@ export async function deleteAttachment(att: Attachment): Promise<void> {
 
 export async function getAttachmentsEnabled(organizationId: string): Promise<boolean> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from('organizations').select('attachments_enabled').eq('id', organizationId).single();
-  if (error) throw new Error(error.message);
+  const { data } = await supabase
+    .from('org_module_settings').select('enabled')
+    .eq('organization_id', organizationId).eq('module_key', 'attachments').maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return !!(data as any)?.attachments_enabled;
+  return !!(data as any)?.enabled;
 }
 
 // only a holder of can_manage_attachments may flip this (enforced by RLS too)
@@ -161,9 +161,10 @@ export async function getMyAttachmentsControl(): Promise<{
   let enabled = false;
   if (row.organization_id) {
     const { data: o } = await supabase
-      .from('organizations').select('attachments_enabled').eq('id', row.organization_id).single();
+      .from('org_module_settings').select('enabled')
+      .eq('organization_id', row.organization_id).eq('module_key', 'attachments').maybeSingle();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    enabled = !!(o as any)?.attachments_enabled;
+    enabled = !!(o as any)?.enabled;
   }
   return {
     canManage: !!row.can_manage_attachments,
