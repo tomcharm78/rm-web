@@ -18,6 +18,8 @@
 // "Coming soon" on hover. This communicates the product roadmap to pilot
 // users without breaking when they click.
 
+import { useQuery } from '@tanstack/react-query';
+import { getMyModulesControl } from '@/lib/modules/queries';
 import { useState, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -34,6 +36,7 @@ import {
   Users,             // Users (admin)
   Settings,          // Settings
   Menu,
+  Mail,
   X,
   ChevronLeft,
   ChevronRight,
@@ -56,6 +59,7 @@ type NavItem = {
   labelAr: string;
   enabled: boolean;
   roles?: UserRole[]; // if set, only these roles see the item
+  module?: string;    // if set, only shown when this premium module is enabled
 };
 
 // One source of truth for the navigation. Add new modules here as they ship.
@@ -66,6 +70,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'tasks', href: '/tasks', icon: ClipboardList, labelEn: 'Tasks', labelAr: 'المهام', enabled: true },
   { id: 'challenges', href: '/challenges', icon: Trophy, labelEn: 'Challenges', labelAr: 'التحديات', enabled: true },
   { id: 'sessions', href: '/sessions', icon: CalendarClock, labelEn: 'Sessions', labelAr: 'الجلسات', enabled: true },
+  { id: 'email', href: '/email', icon: Mail, labelEn: 'Email', labelAr: 'البريد', enabled: true, module: 'emails' },
   { id: 'vacations', href: '/vacations', icon: PlaneTakeoff, labelEn: 'Vacations', labelAr: 'الإجازات', enabled: false },
   { id: 'approvals', href: '/approvals', icon: CheckCircle2, labelEn: 'Approvals', labelAr: 'الموافقات', enabled: false },
   { id: 'reports', href: '/reports', icon: BarChart3, labelEn: 'Reports', labelAr: 'التقارير', enabled: false },
@@ -90,9 +95,14 @@ export function DashboardShell({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Filter nav items by current user's role.
+  const modulesCtl = useQuery({ queryKey: ['my-modules-control'], queryFn: getMyModulesControl });
+  const moduleSettings = modulesCtl.data?.settings ?? {};
   const visibleNav = useMemo(
-    () => NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(user.role)),
-    [user.role]
+    () => NAV_ITEMS.filter((item) =>
+      (!item.roles || item.roles.includes(user.role)) &&
+      (!item.module || moduleSettings[item.module] === true)
+    ),
+    [user.role, moduleSettings]
   );
 
   // Which route is "active"? Exact match for /, prefix match for everything else.
