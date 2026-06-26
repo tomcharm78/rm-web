@@ -48,6 +48,8 @@ import {
 } from '@/types/investor';
 import { InvestorFormModal } from '@/components/investors/investor-form-modal';
 import { cn } from '@/lib/utils';
+import { InvestorEmailModal } from '@/components/email/investor-email-modal';
+import { getMyModulesControl } from '@/lib/modules/queries';
 
 type ModalState =
   | { mode: 'closed' }
@@ -63,6 +65,12 @@ export function InvestorsPageClient() {
   const [domain, setDomain] = useState<InvestorDomain | ''>('');
   const [modal, setModal] = useState<ModalState>({ mode: 'closed' });
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [emailOpen, setEmailOpen] = useState(false);
+  const modulesQ = useQuery({ queryKey: ['my-modules-control'], queryFn: getMyModulesControl });
+  const canEmail = !!(modulesQ.data?.settings?.emails) && !!user?.permissions?.includes('send_investor_email');
+  const orgId = modulesQ.data?.organizationId ?? '';
+  const toggleSel = (id: string) => setSelectedIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   // Can the current user create/edit/delete?
   const canMutate = useMemo(
@@ -206,9 +214,33 @@ export function InvestorsPageClient() {
       {!isLoading && !isError && investors.length > 0 && (
         <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
+            {canEmail && selectedIds.size > 0 && (
+              <div className="flex items-center justify-between gap-2 px-4 py-2 bg-indigo-50 border-b border-indigo-100">
+                <span className="text-sm text-indigo-800">
+                  {language === 'ar' ? `${selectedIds.size} محدد` : `${selectedIds.size} selected`}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedIds(new Set())} className="text-xs text-slate-500 hover:text-slate-700">
+                    {language === 'ar' ? 'مسح' : 'Clear'}
+                  </button>
+                  <Button onClick={() => setEmailOpen(true)} className="gap-2 h-8 bg-indigo-600 hover:bg-indigo-700">
+                    <Mail className="h-4 w-4" />{language === 'ar' ? 'إرسال بريد' : 'Email'}
+                  </Button>
+                </div>
+              </div>
+            )}
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr className={cn('text-slate-600', isRTL ? 'text-right' : 'text-left')}>
+                  {canEmail && (
+                    <th className="px-4 py-3 font-medium w-1">
+                      <input
+                        type="checkbox"
+                        checked={investors.length > 0 && selectedIds.size === investors.length}
+                        onChange={(e) => setSelectedIds(e.target.checked ? new Set(investors.map((i) => i.id)) : new Set())}
+                      />
+                    </th>
+                  )}
                   <th className="px-4 py-3 font-medium">{language === 'ar' ? 'الشركة' : 'Company'}</th>
                   <th className="px-4 py-3 font-medium">{language === 'ar' ? 'القطاع' : 'Domain'}</th>
                   <th className="px-4 py-3 font-medium hidden md:table-cell">{language === 'ar' ? 'الدولة' : 'Country'}</th>
@@ -220,6 +252,11 @@ export function InvestorsPageClient() {
               <tbody>
                 {investors.map((inv) => (
                   <tr key={inv.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
+                    {canEmail && (
+                      <td className="px-4 py-3 align-top">
+                        <input type="checkbox" checked={selectedIds.has(inv.id)} onChange={() => toggleSel(inv.id)} />
+                      </td>
+                    )}
                     <td className="px-4 py-3 align-top">
                       <div className="font-medium text-slate-900">
                         {language === 'ar' ? inv.companyNameAr || inv.companyName : inv.companyName}
@@ -310,6 +347,13 @@ export function InvestorsPageClient() {
       )}
 
       {/* Add / Edit modal */}
+      {emailOpen && (
+        <InvestorEmailModal
+          recipients={investors.filter((i) => selectedIds.has(i.id)).map((i) => ({ id: i.id, name: i.representativeName || i.companyName, email: i.email ?? null }))}
+          organizationId={orgId}
+          onClose={() => { setEmailOpen(false); }}
+        />
+      )}
       {modal.mode !== 'closed' && (
         <InvestorFormModal
           mode={modal.mode}

@@ -338,7 +338,8 @@ export type UserPermission =
   | 'create_challenges'
   | 'create_sessions'
   | 'export_data'
-  | 'export_vacations';
+  | 'export_vacations'
+  | 'send_investor_email';
 
 export type DbUser = Database['public']['Tables']['users']['Row'];
 export type DbInvestor = Database['public']['Tables']['investors']['Row'];
