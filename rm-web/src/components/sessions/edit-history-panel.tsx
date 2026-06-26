@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { History, ChevronDown, ChevronUp } from 'lucide-react';
+import { CollapsibleCard } from '@/components/challenges/collapsible-card';
 import { createClient } from '@/lib/supabase/client';
 import { useLanguage } from '@/providers/language-provider';
 import { getSessionEditHistory } from '@/lib/sessions/queries';
@@ -43,18 +44,11 @@ export function EditHistoryPanel({ sessionId }: { sessionId: string }) {
   const editorMap = new Map(editors.map((e) => [e.id, e]));
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 bg-slate-50">
-        <History className="h-4 w-4 text-slate-600" />
-        <h3 className="text-sm font-semibold text-slate-900">
-          {language === 'ar' ? 'سجل التعديلات' : 'Edit History'}
-        </h3>
-        <span className="text-xs text-slate-500 ms-auto">
-          {history.length}{' '}
-          {language === 'ar' ? 'إدخال' : history.length === 1 ? 'entry' : 'entries'}
-        </span>
-      </div>
-
+    <CollapsibleCard
+      title={language === 'ar' ? 'سجل التعديلات' : 'Edit History'}
+      icon={<History className="h-4 w-4 text-slate-500" />}
+      count={history.length}
+    >
       <div className="divide-y divide-slate-100">
         {isLoading ? (
           <div className="px-4 py-4 text-sm text-slate-500">
@@ -76,10 +70,9 @@ export function EditHistoryPanel({ sessionId }: { sessionId: string }) {
           ))
         )}
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }
-
 function HistoryRow({
   entry,
   editor,

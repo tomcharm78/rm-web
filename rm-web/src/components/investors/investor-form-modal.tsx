@@ -19,6 +19,7 @@
 // opens the BusinessCardScanner. When the scanner returns parsed data, we
 // prefill the form fields.
 
+import { AttachmentsPanel } from '@/components/attachments/attachments-panel';
 import { useState, useEffect, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { X, ScanLine, Loader2 } from 'lucide-react';
@@ -336,6 +337,9 @@ export function InvestorFormModal({ mode, investor, onClose, onSaved }: Props) {
             </div>
           )}
 
+          {mode === 'edit' && investor?.id && (
+            <AttachmentsPanel entityType="investor" entityId={investor.id} />
+          )}
           {/* Footer */}
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 sticky bottom-0 bg-white">
             <Button type="button" variant="outline" onClick={onClose} disabled={saveMutation.isPending}>

@@ -23,6 +23,7 @@ import { getChallenge } from '@/lib/challenges/queries';
 import { TaskMilestones } from '@/components/tasks/task-milestones';
 import { TaskAcceptance } from '@/components/tasks/task-acceptance';
 import { TaskActions } from '@/components/tasks/task-actions';
+import { AttachmentsPanel } from '@/components/attachments/attachments-panel';
 import { TaskTransfer } from '@/components/tasks/task-transfer';
 import {
   STATUS_LABELS,
@@ -206,6 +207,7 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
       <TaskAcceptance task={task} />
 
       <TaskMilestones task={task} />
+      <AttachmentsPanel entityType="task" entityId={task.id} />
 
       {task.status === 'done' && task.closureNote && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 text-sm text-green-900">

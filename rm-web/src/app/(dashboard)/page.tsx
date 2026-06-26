@@ -6,6 +6,7 @@ import { Pencil, Building2, Check, X } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { getMyOrgContext, updateDeputyshipName } from '@/lib/org/queries';
+import { AttachmentsToggle } from '@/components/attachments/attachments-toggle';
 
 export default function DashboardHomePage() {
   const { user, isInitialized } = useAuth();
@@ -119,6 +120,9 @@ export default function DashboardHomePage() {
             <div className="font-medium">{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : '—'}</div>
           </div>
         </div>
+      </div>
+      <div className="mt-6">
+        <AttachmentsToggle />
       </div>
     </div>
   );

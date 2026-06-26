@@ -51,6 +51,7 @@ import { LockDialog } from '@/components/sessions/lock-dialog';
 import { ReEnableEditDialog } from '@/components/sessions/re-enable-edit-dialog';
 import { EditLockedDialog } from '@/components/sessions/edit-locked-dialog';
 import { EditHistoryPanel } from '@/components/sessions/edit-history-panel';
+import { AttachmentsPanel } from '@/components/attachments/attachments-panel';
 import { AiMomGenerator } from '@/components/sessions/ai-mom-generator';
 import { AiTaskTriage } from '@/components/sessions/ai-task-triage';
 import { TaskFormModal } from '@/components/tasks/task-form-modal';
@@ -336,7 +337,8 @@ export function SessionDetailClient({ id }: { id: string }) {
         <FollowupsList parentId={session.id} language={language} />
       )}
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-4">
+        <AttachmentsPanel entityType="session" entityId={session.id} />
         <EditHistoryPanel sessionId={session.id} />
       </div>
 
