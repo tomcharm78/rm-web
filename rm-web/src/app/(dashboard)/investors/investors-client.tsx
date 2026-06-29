@@ -24,6 +24,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
   Download,
+  FileUp,
   Search,
   Building2,
   Mail,
@@ -49,6 +50,7 @@ import {
 import { InvestorFormModal } from '@/components/investors/investor-form-modal';
 import { cn } from '@/lib/utils';
 import { InvestorEmailModal } from '@/components/email/investor-email-modal';
+import { InvestorImportModal } from '@/components/investors/import/investor-import-modal';
 import { getMyModulesControl } from '@/lib/modules/queries';
 
 type ModalState =
@@ -60,7 +62,7 @@ export function InvestorsPageClient() {
   const { user } = useAuth();
   const { language, isRTL } = useLanguage();
   const queryClient = useQueryClient();
-
+  const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [domain, setDomain] = useState<InvestorDomain | ''>('');
   const [modal, setModal] = useState<ModalState>({ mode: 'closed' });
@@ -125,6 +127,17 @@ export function InvestorsPageClient() {
             <Download className="h-4 w-4" />
             {language === 'ar' ? 'تصدير CSV' : 'Export CSV'}
           </Button>
+          {canMutate && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              className="gap-2"
+            >
+              <FileUp className="h-4 w-4" />
+              {language === 'ar' ? 'استيراد' : 'Import'}
+            </Button>
+          )}
           {canMutate && (
             <Button
               size="sm"
@@ -269,6 +282,11 @@ export function InvestorsPageClient() {
                           {language === 'ar' ? 'مسح بطاقة' : 'Mobile Scan'}
                         </span>
                       )}
+                      {inv.sourceSystem === 'upload' && (
+                        <span className="inline-flex items-center mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-100 text-sky-800">
+                          {language === 'ar' ? 'تحميل' : 'Upload'}
+                        </span>
+                      )}
                       {inv.website && (
                         <a
                           href={inv.website}
@@ -352,6 +370,12 @@ export function InvestorsPageClient() {
           recipients={investors.filter((i) => selectedIds.has(i.id)).map((i) => ({ id: i.id, name: i.representativeName || i.companyName, email: i.email ?? null }))}
           organizationId={orgId}
           onClose={() => { setEmailOpen(false); }}
+        />
+      )}
+      {importOpen && (
+        <InvestorImportModal
+          onClose={() => setImportOpen(false)}
+          onImported={() => queryClient.invalidateQueries({ queryKey: ['investors'] })}
         />
       )}
       {modal.mode !== 'closed' && (
