@@ -17,6 +17,7 @@ export const ALL_PERMISSIONS: UserPermission[] = [
   'export_vacations',
   'ai_insights',
   'send_investor_email',
+  'manage_surveys',
 ];
 
 // Roles a regular admin can assign. super_admin can also assign 'super_admin'/'admin'.
@@ -44,6 +45,7 @@ export const PERMISSION_LABELS: Record<UserPermission, { en: string; ar: string 
   export_vacations: { en: 'Export vacations', ar: 'تصدير الإجازات' },
   ai_insights: { en: 'AI insights', ar: 'رؤى الذكاء الاصطناعي' },
   send_investor_email: { en: 'Send investor email', ar: 'إرسال بريد للمستثمرين' },
+  manage_surveys: { en: 'Manage surveys', ar: 'إدارة الاستبيانات' },
 };
 
 // Defaults applied when a role is picked; each toggle is then individually
