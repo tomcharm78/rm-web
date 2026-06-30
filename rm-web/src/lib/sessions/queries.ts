@@ -16,6 +16,7 @@
 // Every state-changing call logs an entry to session_edit_history with a
 // human-readable change_description (EN + AR).
 
+import { upsertContactsFromAttendees } from '@/lib/contacts/queries';
 import { createClient } from '@/lib/supabase/client';
 import {
   dbRowToSession,
@@ -165,6 +166,8 @@ export async function createSession(input: SessionFormInput): Promise<Session> {
     console.error('[createSession] error:', error);
     throw new Error(error.message);
   }
+  // push visitor attendees into the Contacts directory (non-blocking)
+  void upsertContactsFromAttendees(input.visitorAttendees);
   return dbRowToSession(data as SessionRow);
 }
 
@@ -203,6 +206,8 @@ export async function updateSession(id: string, input: SessionFormInput): Promis
     console.error('[updateSession] error:', error);
     throw new Error(error.message);
   }
+  // push visitor attendees into the Contacts directory (non-blocking)
+  void upsertContactsFromAttendees(input.visitorAttendees);
 
   // -----------------------------------------------------------------------
   // Option B audit logging: write an Edit History row summarising the diff.

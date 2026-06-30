@@ -115,6 +115,7 @@ function CopyRow({ url, ar }: { url: string; ar: boolean }) {
 function InvestorDistributionBuilder({ surveyId, ar, onCreated }: { surveyId: string; ar: boolean; onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
 
   const investorsQ = useQuery({ queryKey: ['investors-for-survey'], queryFn: () => listInvestors({}), enabled: open });
   const investors = (investorsQ.data ?? []).filter((i) => (i.email ?? '').trim());
@@ -132,18 +133,44 @@ function InvestorDistributionBuilder({ surveyId, ar, onCreated }: { surveyId: st
     );
   }
 
+  const filtered = investors.filter((i) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return [i.companyName, i.companyNameAr, i.email].filter(Boolean).some((s) => s!.toLowerCase().includes(q));
+  });
+  const allSelected = filtered.length > 0 && filtered.every((i) => selected.has(i.id));
+  const toggleAll = () => setSelected((s) => {
+    const n = new Set(s);
+    if (allSelected) filtered.forEach((i) => n.delete(i.id));
+    else filtered.forEach((i) => n.add(i.id));
+    return n;
+  });
+
   return (
     <div className="rounded-md border border-slate-200 p-3 mb-3">
       <p className="text-xs text-slate-500 mb-2">{ar ? 'اختر المستثمرين (ذوي البريد فقط):' : 'Select investors (with email only):'}</p>
-      <div className="max-h-48 overflow-y-auto border border-slate-100 rounded divide-y divide-slate-100 mb-3">
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={ar ? 'بحث بالاسم أو البريد…' : 'Search by name or email…'}
+        className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      />
+      <label className="flex items-center gap-2 px-2 py-1.5 text-sm border-b border-slate-100 cursor-pointer">
+        <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+        <span className="text-slate-600 font-medium">{ar ? `تحديد الكل (${filtered.length})` : `Select all (${filtered.length})`}</span>
+      </label>
+      <div className="max-h-48 overflow-y-auto border border-slate-100 rounded divide-y divide-slate-100 mb-3 mt-2">
         {investorsQ.isLoading && <p className="text-xs text-slate-400 p-2">{ar ? 'جارٍ التحميل…' : 'Loading…'}</p>}
-        {investors.map((i) => (
+        {filtered.map((i) => (
           <label key={i.id} className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
             <input type="checkbox" checked={selected.has(i.id)} onChange={() => setSelected((s) => { const n = new Set(s); n.has(i.id) ? n.delete(i.id) : n.add(i.id); return n; })} />
             <span className="truncate">{[i.companyName, i.companyNameAr].filter(Boolean).join(' — ') || (ar ? '(بدون اسم)' : '(no name)')}</span>
             <span className="text-xs text-slate-400 truncate ms-auto" dir="ltr">{i.email}</span>
           </label>
         ))}
+        {!investorsQ.isLoading && filtered.length === 0 && (
+          <p className="text-xs text-slate-400 p-2">{ar ? 'لا نتائج.' : 'No matches.'}</p>
+        )}
       </div>
       <div className="flex justify-between gap-2">
         <Button variant="outline" onClick={() => { setOpen(false); setSelected(new Set()); }}>{ar ? 'إلغاء' : 'Cancel'}</Button>

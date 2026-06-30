@@ -126,3 +126,39 @@ export async function listDirectory(): Promise<DirectoryEntry[]> {
 
   return [...contactEntries, ...investorEntries];
 }
+// ---- push session attendees into the contacts directory ----
+// For each attendee: match on email (if present) else exact name; create if no match.
+// Partial details are fine (no email/phone). Reuses createContact so the insert
+// satisfies RLS (created_by_id etc). Non-fatal — failures never block the session save.
+export async function upsertContactsFromAttendees(attendees: {
+  name: string; nameAr?: string;
+  position?: string; organization?: string; organizationAr?: string;
+  email?: string | null; phone?: string;
+}[]): Promise<void> {
+  try {
+    const existing = await listContacts();
+    for (const att of attendees) {
+      const name = (att.name ?? '').trim();
+      if (!name) continue; // skip nameless attendees
+      const email = (att.email ?? '').trim().toLowerCase();
+
+      const match = existing.find((c) => {
+        if (email && c.email) return c.email.trim().toLowerCase() === email;
+        return c.name.trim().toLowerCase() === name.toLowerCase();
+      });
+      if (match) continue; // already in the directory
+
+      await createContact({
+        name,
+        nameAr: att.nameAr?.trim() || '',
+        email: email || null,
+        organization: (att.organization ?? '').trim(),
+        role: (att.position ?? '').trim(),
+        phone: (att.phone ?? '').trim(),
+        type: 'external',
+      });
+    }
+  } catch {
+    // never block the session save on a directory write
+  }
+}
