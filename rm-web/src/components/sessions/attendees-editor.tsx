@@ -12,6 +12,9 @@
 //   - Trash icon on each row removes it
 //   - Empty array shows a friendly placeholder
 
+import { useState } from 'react';
+import { ContactPickerModal } from '@/components/sessions/contact-picker-modal';
+import type { DirectoryEntry } from '@/types/contact';
 import { Trash2, Plus } from 'lucide-react';
 import { useLanguage } from '@/providers/language-provider';
 import { Input } from '@/components/ui/input';
@@ -25,7 +28,20 @@ type Props = {
   disabled?: boolean;
 };
 
-export function AttendeesEditor({ kind, value, onChange, disabled }: Props) {
+export function AttendeesEditor({ kind, value, onChange, disabled }: Props) {const [pickerOpen, setPickerOpen] = useState(false);
+
+  function addFromContacts(entries: DirectoryEntry[]) {
+    const mapped = entries.map((e) => ({
+      ...emptyAttendee(kind === 'moh' ? 'moh' : 'vis'),
+      name: e.name ?? '',
+      nameAr: e.nameAr ?? '',
+      position: e.role ?? '',
+      organization: e.organization ?? '',
+      email: e.email ?? '',
+      phone: e.phone ?? '',
+    }));
+    onChange([...value, ...mapped]);
+  }
   const { language } = useLanguage();
 
   function updateAt(index: number, patch: Partial<SessionAttendee>) {
@@ -137,10 +153,19 @@ export function AttendeesEditor({ kind, value, onChange, disabled }: Props) {
       ))}
 
       {!disabled && (
-        <Button type="button" variant="outline" size="sm" onClick={addRow} className="gap-2">
-          <Plus className="h-4 w-4" />
-          {language === 'ar' ? 'إضافة' : 'Add attendee'}
-        </Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={addRow} className="gap-2">
+            <Plus className="h-4 w-4" />
+            {language === 'ar' ? 'إضافة' : 'Add attendee'}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            {language === 'ar' ? 'من جهات الاتصال' : 'From Contacts'}
+          </Button>
+        </div>
+      )}
+      {pickerOpen && (
+        <ContactPickerModal onClose={() => setPickerOpen(false)} onPick={addFromContacts} />
       )}
     </div>
   );
