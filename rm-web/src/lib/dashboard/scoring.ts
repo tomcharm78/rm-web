@@ -126,3 +126,22 @@ export type PerfResult = {
   tier: PerfTier;
   weights: Weights;
 };
+// Yearly volume: cumulative total against year-scaled baselines.
+// Roughly monthly baselines × 6 (sustained half-year+ of pace):
+//   >=12/yr low band, >=30 medium, >=72 high, >=120 super
+export function computeYearlyVolumeScore(closedThisYear: number): number {
+  const bands: [number, number, number, number][] = [
+    [0, 12, 0, 40],
+    [12, 30, 40, 60],
+    [30, 72, 60, 80],
+    [72, 120, 80, 100],
+  ];
+  if (closedThisYear >= 120) return 100;
+  for (const [lc, uc, ls, us] of bands) {
+    if (closedThisYear >= lc && closedThisYear < uc) {
+      const frac = uc === lc ? 0 : (closedThisYear - lc) / (uc - lc);
+      return Math.round(ls + frac * (us - ls));
+    }
+  }
+  return 0;
+}

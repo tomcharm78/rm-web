@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import {
-  computeVolumeScore, computeTimelinessScore, computeOutcomesScore,
+  computeVolumeScore, computeYearlyVolumeScore, computeTimelinessScore, computeOutcomesScore,
   composite, tierFromComposite, DEFAULT_WEIGHTS,
   type Weights, type PerfResult,
 } from '@/lib/dashboard/scoring';
@@ -173,10 +173,9 @@ export async function getYearlyPerformance(userId: string, year: number): Promis
   const avgClosureDays = tasksClosed > 0 ? closureDaysWeighted / tasksClosed : 0;
   const weights = results[results.length - 1]?.weights ?? DEFAULT_WEIGHTS;
 
-  // yearly volume uses the SAME monthly baselines but on a per-month average
-  // so 'Super all year' still reads Super (not inflated by summing 12 months)
-  const avgMonthlyClosed = tasksClosed / (results.length || 1);
-  const volumeScore = computeVolumeScore(avgMonthlyClosed);
+  // yearly volume: cumulative total against year-scaled baselines
+  // (monthly 3/5/12/20 → yearly ~12/30/72/120, i.e. sustained monthly pace)
+  const volumeScore = computeYearlyVolumeScore(tasksClosed);
   const timelinessScore = computeTimelinessScore({ closed: tasksClosed, onTime: tasksOnTime, avgClosureDays });
   const outcomes = computeOutcomesScore({ challengesResolved, tasksClosed, surveyAvg: null });
   const compositeScore = composite(

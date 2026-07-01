@@ -1,5 +1,6 @@
 'use client';
 
+import { PersonalPerformance } from '@/components/dashboard/personal-performance';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Building2, Check, X } from 'lucide-react';
@@ -120,6 +121,9 @@ export default function DashboardHomePage() {
             <div className="font-medium">{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : '—'}</div>
           </div>
         </div>
+      </div>
+      <div className="mt-8">
+        <PersonalPerformance userId={user.id} userName={user.name} />
       </div>
       <div className="mt-6">
         <ModulesToggle />
