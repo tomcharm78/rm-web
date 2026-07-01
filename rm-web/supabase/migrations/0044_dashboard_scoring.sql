@@ -44,7 +44,7 @@ create policy perf_weights_read on public.performance_weights for select using (
 
 
 -- ---- BLOCK 9 (run alone) ----
-create policy perf_weights_write on public.performance_weights for all using (organization_id = public.current_user_organization_id() and (public.current_user_is_super() or 'configure_performance' = any((select permissions from public.users where id = auth.uid())))) with check (organization_id = public.current_user_organization_id());
+create policy perf_weights_write on public.performance_weights for all using (organization_id = public.current_user_organization_id() and (public.current_user_is_super() or exists (select 1 from public.users u where u.id = auth.uid() and 'configure_performance'::public.user_permission = any(u.permissions)))) with check (organization_id = public.current_user_organization_id());
 
 
 -- ---- BLOCK 10: monthly_performance RLS — read own OR (admin/super see dept/org); no direct write (computed via service path / future job) ----
@@ -52,7 +52,7 @@ create policy monthly_perf_read on public.monthly_performance for select using (
 
 
 -- ---- BLOCK 11 (run alone): allow super/admin-with-permission to upsert recorded scores ----
-create policy monthly_perf_write on public.monthly_performance for all using (organization_id = public.current_user_organization_id() and (public.current_user_is_super() or 'configure_performance' = any((select permissions from public.users where id = auth.uid())))) with check (organization_id = public.current_user_organization_id());
+create policy monthly_perf_write on public.monthly_performance for all using (organization_id = public.current_user_organization_id() and (public.current_user_is_super() or exists (select 1 from public.users u where u.id = auth.uid() and 'configure_performance'::public.user_permission = any(u.permissions)))) with check (organization_id = public.current_user_organization_id());
 
 
 -- ---- BLOCK 12 (run alone): new permission for configuring performance weights / recording scores ----
