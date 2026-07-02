@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import {
-  getMonthlyPerformance, getWeights, currentYearMonth,
+  getMonthlyPerformance, getWeights, currentYearMonth, recentYearMonths, monthBounds,
 } from '@/lib/dashboard/perf-queries';
 import { tierFromComposite, type PerfResult, type PerfTier } from '@/lib/dashboard/scoring';
 
@@ -213,4 +213,48 @@ export async function getOrgWidePerformance(
   for (const r of currentResults) tierCounts[r.tier]++;
 
   return { members: memberScores, kpis: { totalClosed, onTimeRate: totalClosed > 0 ? Math.round((totalOnTime / totalClosed) * 100) : 0, avgComposite, tierCounts, memberCount: allMembers.length } };
+}
+// dept trend: avg composite + total tasks per month (last N months)
+export async function getDeptTrend(
+  deptId: string | null,
+  months: string[],
+): Promise<{ ym: string; avgComposite: number; totalClosed: number }[]> {
+  const supabase = createClient();
+  // 1. get member ids
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q: any = supabase.from('users').select('id').is('deleted_at', null)
+    .not('role', 'in', '(investor,stakeholder,super_admin)').eq('is_higher_management', false);
+  if (deptId && deptId !== 'overall') q = q.eq('department_id', deptId);
+  const { data: members } = await q;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const memberIds = (members ?? []).map((u: any) => u.id);
+  if (!memberIds.length) return months.map((ym) => ({ ym, avgComposite: 0, totalClosed: 0 }));
+  // 2. get task ids for these members
+  const { data: tasks } = await supabase.from('tasks').select('id').in('assigned_to_id', memberIds).is('deleted_at', null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const taskIds = (tasks ?? []).map((t: any) => t.id);
+  if (!taskIds.length) return months.map((ym) => ({ ym, avgComposite: 0, totalClosed: 0 }));
+  // 3. get all closures across the full trend window in one query
+  const { start: windowStart } = monthBounds(months[0]);
+  const { end: windowEnd } = monthBounds(months[months.length - 1]);
+  const { data: history } = await supabase.from('task_status_history')
+    .select('task_id, changed_at').in('task_id', taskIds)
+    .eq('to_status', 'done').gte('changed_at', windowStart).lt('changed_at', windowEnd);
+  // group by month (dedup by task_id per month)
+  return months.map((ym) => {
+    const { start, end } = monthBounds(ym);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const closed = new Set((history ?? []).filter((h: any) => h.changed_at >= start && h.changed_at < end).map((h: any) => h.task_id));
+    return { ym, avgComposite: 0, totalClosed: closed.size };
+  });
+}
+
+// org dept comparison: tier counts per dept (super admin stacked bar)
+export async function getOrgDeptComparison(
+  yearMonth: string,
+  depts: { id: string; name: string; nameAr: string }[],
+): Promise<{ deptId: string; name: string; nameAr: string; tierCounts: Record<PerfTier, number> }[]> {
+  if (!depts.length) return [];
+  const results = await Promise.all(depts.map((d) => getDepartmentPerformance(d.id, yearMonth)));
+  return depts.map((d, i) => ({ deptId: d.id, name: d.name, nameAr: d.nameAr, tierCounts: results[i].kpis.tierCounts }));
 }
