@@ -8,7 +8,7 @@ import { PersonalPerformance } from '@/components/dashboard/personal-performance
 import { ComparisonTable } from '@/components/dashboard/comparison-table';
 import {
   getDepartmentPerformance, getOrgWidePerformance, getOrgLeaderboard, listAllDepartments,
-  getMyDepartmentId, type MemberScore, type LeaderboardEntry,
+  getMyDepartmentId, getDeptTrend, getOrgDeptComparison, type MemberScore, type LeaderboardEntry,
 } from '@/lib/dashboard/dept-queries';
 import { tierLabel, tierColor, type PerfTier } from '@/lib/dashboard/scoring';
 import { currentYearMonth, recentYearMonths } from '@/lib/dashboard/perf-queries';
@@ -368,7 +368,7 @@ export function DeptPerformanceView({ role, userId }: { role: string; userId: st
   });
 
   const deptCompareQ = useQuery({
-    queryKey: ['dept-compare', ym],
+    queryKey: ['dept-compare', ym, (allDeptsQ.data ?? []).map((d) => d.id).join(',')],
     queryFn: () => getOrgDeptComparison(ym, allDeptsQ.data ?? []),
     enabled: isSuper && !!(allDeptsQ.data?.length),
   });
