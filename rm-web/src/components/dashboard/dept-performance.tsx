@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { ComparisonTable } from '@/components/dashboard/comparison-table';
 import { useQuery } from '@tanstack/react-query';
 import { useLanguage } from '@/providers/language-provider';
 import { PerfGauge } from '@/components/dashboard/perf-gauge';
 import { PersonalPerformance } from '@/components/dashboard/personal-performance';
 import {
-  getDepartmentPerformance, getOrgLeaderboard, listAllDepartments,
+  getDepartmentPerformance, getOrgWidePerformance, getOrgLeaderboard, listAllDepartments,
   getMyDepartmentId, type MemberScore, type LeaderboardEntry,
 } from '@/lib/dashboard/dept-queries';
 import { tierLabel, tierColor, type PerfTier } from '@/lib/dashboard/scoring';
@@ -175,7 +176,7 @@ export function DeptPerformanceView({ role, userId }: { role: string; userId: st
   const isSuper = role === 'super_admin';
   const isAdmin = role === 'admin';
 
-  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(isSuper ? 'overall' : null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const myDeptQ = useQuery({ queryKey: ['my-dept-id'], queryFn: getMyDepartmentId, enabled: isAdmin });
@@ -183,9 +184,10 @@ export function DeptPerformanceView({ role, userId }: { role: string; userId: st
   const leaderQ = useQuery({ queryKey: ['org-leaderboard', ym], queryFn: () => getOrgLeaderboard(ym), enabled: isSuper });
 
   const deptId = isSuper ? selectedDeptId : (myDeptQ.data ?? null);
+  const isOverall = deptId === 'overall';
   const deptPerfQ = useQuery({
     queryKey: ['dept-perf', deptId, ym],
-    queryFn: () => getDepartmentPerformance(deptId!, ym),
+    queryFn: () => isOverall ? getOrgWidePerformance(ym) : getDepartmentPerformance(deptId!, ym),
     enabled: !!deptId,
   });
 
@@ -206,7 +208,8 @@ export function DeptPerformanceView({ role, userId }: { role: string; userId: st
               onChange={(e) => { setSelectedDeptId(e.target.value || null); setSelectedUserId(null); }}
               style={{ borderRadius: 8, border: '0.5px solid var(--border)', padding: '6px 10px', fontSize: 13, background: 'var(--surface-1)' }}
             >
-              <option value="">{ar ? '— اختر قسمًا —' : '— select department —'}</option>
+              <option value="overall">{ar ? 'الكل — نظرة شاملة' : 'Overall — all departments'}</option>
+              <option value="">{ar ? '— قسم محدد —' : '— specific department —'}</option>
               {(allDeptsQ.data ?? []).map((d) => <option key={d.id} value={d.id}>{ar ? d.nameAr || d.name : d.name}</option>)}
             </select>
           </div>
@@ -216,7 +219,7 @@ export function DeptPerformanceView({ role, userId }: { role: string; userId: st
       {/* dept view */}
       {deptId && deptPerf && (
         <div style={{ background: 'var(--surface-2)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1rem 1.25rem' }}>
-          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{ar ? 'أداء القسم' : 'Department performance'}</div>
+          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{isOverall ? (ar ? 'الأداء العام — جميع الأقسام' : 'Overall performance — all departments') : (ar ? 'أداء القسم' : 'Department performance')}</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>{ym} · {deptPerf.kpis.memberCount} {ar ? 'عضو' : 'members'}</div>
 
           <KpiTiles kpis={deptPerf.kpis} ar={ar} />
@@ -264,6 +267,9 @@ export function DeptPerformanceView({ role, userId }: { role: string; userId: st
               <WorkloadChart members={deptPerf.members} ar={ar} />
             </>
           )}
+        {!selectedUserId && deptId && (
+          <ComparisonTable deptId={isOverall ? null : deptId} orgWide={isOverall} ar={ar} />
+        )}
         </div>
       )}
 

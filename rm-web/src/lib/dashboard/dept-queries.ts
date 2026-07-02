@@ -175,3 +175,42 @@ export async function getOrgLeaderboard(yearMonth: string = currentYearMonth()):
 
   return { top5, employeeOfMonth };
 }
+// org-wide combined performance (all staff, all departments) — for super admin "Overall" view
+export async function getOrgWidePerformance(
+  yearMonth: string = currentYearMonth(),
+): Promise<{ members: MemberScore[]; kpis: DeptKPIs }> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('users')
+    .select('id, name, name_ar, role, department_id')
+    .is('deleted_at', null)
+    .not('role', 'in', '(investor,stakeholder,super_admin)')
+    .eq('is_higher_management', false)
+    .order('name');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allMembers = (data ?? []).map((u: any) => ({ id: u.id, name: u.name, nameAr: u.name_ar ?? '', role: u.role }));
+  if (!allMembers.length) return { members: [], kpis: { totalClosed: 0, onTimeRate: 0, avgComposite: 0, tierCounts: { low: 0, medium: 0, high: 0, super: 0 }, memberCount: 0 } };
+
+  const lastYm = lastMonthKey(yearMonth);
+  const [currentResults, lastResults] = await Promise.all([
+    Promise.all(allMembers.map((m) => getMonthlyPerformance(m.id, yearMonth))),
+    Promise.all(allMembers.map((m) => getMonthlyPerformance(m.id, lastYm))),
+  ]);
+
+  const rankMap = assignRanks(allMembers.map((m, i) => ({ userId: m.id, composite: currentResults[i].composite })));
+  const memberScores: MemberScore[] = allMembers.map((m, i) => ({
+    userId: m.id, name: m.name, nameAr: m.nameAr, role: m.role,
+    rank: rankMap.get(m.id) ?? i + 1,
+    result: currentResults[i],
+    lastResult: lastResults[i],
+    delta: currentResults[i].composite - lastResults[i].composite,
+  })).sort((a, b) => a.rank - b.rank);
+
+  const totalClosed = currentResults.reduce((s, r) => s + r.tasksClosed, 0);
+  const totalOnTime = currentResults.reduce((s, r) => s + r.tasksOnTime, 0);
+  const avgComposite = Math.round(currentResults.reduce((s, r) => s + r.composite, 0) / allMembers.length);
+  const tierCounts: Record<PerfTier, number> = { low: 0, medium: 0, high: 0, super: 0 };
+  for (const r of currentResults) tierCounts[r.tier]++;
+
+  return { members: memberScores, kpis: { totalClosed, onTimeRate: totalClosed > 0 ? Math.round((totalOnTime / totalClosed) * 100) : 0, avgComposite, tierCounts, memberCount: allMembers.length } };
+}
