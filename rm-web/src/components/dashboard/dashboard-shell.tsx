@@ -33,6 +33,7 @@ import {
   PlaneTakeoff,      // Vacations
   CheckCircle2,      // Approvals
   BarChart3,         // Reports
+  Target,            // KPIs
   Users,             // Users (admin)
   Settings,          // Settings
   Menu,
@@ -75,6 +76,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'vacations', href: '/vacations', icon: PlaneTakeoff, labelEn: 'Vacations', labelAr: 'الإجازات', enabled: false },
   { id: 'approvals', href: '/approvals', icon: CheckCircle2, labelEn: 'Approvals', labelAr: 'الموافقات', enabled: false },
   { id: 'reports', href: '/reports', icon: BarChart3, labelEn: 'Reports', labelAr: 'التقارير', enabled: false },
+  { id: 'kpis', href: '/kpis', icon: Target, labelEn: 'KPIs', labelAr: 'مؤشرات الأداء', enabled: true, module: 'kpis', roles: ['admin', 'super_admin'] },
   { id: 'users', href: '/users', icon: Users, labelEn: 'Users', labelAr: 'المستخدمون', enabled: true, roles: ['admin', 'super_admin'] },
   { id: 'settings', href: '/settings', icon: Settings, labelEn: 'Settings', labelAr: 'الإعدادات', enabled: false },
 ];
