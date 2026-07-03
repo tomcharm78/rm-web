@@ -114,3 +114,30 @@ export async function archiveDepartmentGoal(id: string): Promise<void> {
   const { error } = await supabase.from('department_goals').update({ status: 'archived', updated_at: new Date().toISOString() }).eq('id', id);
   if (error) { console.error('[archiveDepartmentGoal]', error); throw new Error(error.message); }
 }
+// ---- deputyship ↔ org goal parents (many-to-many) ----
+
+export async function listGoalParents(deputyshipGoalId: string): Promise<string[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('strategic_goal_parents')
+    .select('org_goal_id')
+    .eq('deputyship_goal_id', deputyshipGoalId);
+  if (error) { console.error('[listGoalParents]', error); throw new Error(error.message); }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => r.org_goal_id as string);
+}
+
+// replace the full set of org-goal parents for a deputyship goal
+export async function setGoalParents(deputyshipGoalId: string, orgGoalIds: string[]): Promise<void> {
+  const supabase = createClient();
+  // delete existing, then insert the new set
+  const { error: delErr } = await supabase
+    .from('strategic_goal_parents')
+    .delete()
+    .eq('deputyship_goal_id', deputyshipGoalId);
+  if (delErr) { console.error('[setGoalParents delete]', delErr); throw new Error(delErr.message); }
+  if (orgGoalIds.length === 0) return;
+  const rows = orgGoalIds.map((org_goal_id) => ({ deputyship_goal_id: deputyshipGoalId, org_goal_id }));
+  const { error: insErr } = await supabase.from('strategic_goal_parents').insert(rows);
+  if (insErr) { console.error('[setGoalParents insert]', insErr); throw new Error(insErr.message); }
+}
