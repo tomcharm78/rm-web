@@ -59,6 +59,9 @@ export type DepartmentGoalRow = {
   organization_id: string;
   department_id: string;
   deputyship_goal_id: string;
+  target_type: TargetType;
+  unit_label: string;
+  current_value: number;
   title: string;
   title_ar: string;
   description: string;
@@ -78,6 +81,9 @@ export type DepartmentGoal = {
   id: string;
   departmentId: string;
   deputyshipGoalId: string;
+  targetType: TargetType;
+  unitLabel: string;
+  currentValue: number;
   title: string;
   titleAr: string;
   description: string;
@@ -94,6 +100,7 @@ export type DepartmentGoal = {
 export function dbDepartmentGoalToGoal(r: DepartmentGoalRow): DepartmentGoal {
   return {
     id: r.id, departmentId: r.department_id, deputyshipGoalId: r.deputyship_goal_id,
+    targetType: r.target_type, unitLabel: r.unit_label ?? '', currentValue: r.current_value ?? 0,
     title: r.title, titleAr: r.title_ar,
     description: r.description, descriptionAr: r.description_ar,
     year: r.year,
@@ -115,6 +122,9 @@ export type StrategicGoalInput = {
 export type DepartmentGoalInput = {
   departmentId: string;
   deputyshipGoalId: string;
+  targetType?: TargetType;
+  unitLabel?: string;
+  currentValue?: number;
   title: string; titleAr: string;
   description?: string; descriptionAr?: string;
   year: number;
@@ -179,4 +189,22 @@ export function paceColor(s: PaceStatus): string {
     case 'deviated': return '#eda100';
     case 'behind': return '#e34948';
   }
+}
+// ---- target types (slice 3b) ----
+export type TargetType = 'count' | 'percentage' | 'sar';
+
+export function targetTypeLabel(t: TargetType, ar: boolean): string {
+  const m: Record<TargetType, [string, string]> = {
+    count: ['Count', 'عدد'],
+    percentage: ['Percentage', 'نسبة مئوية'],
+    sar: ['SAR amount', 'مبلغ بالريال'],
+  };
+  return ar ? m[t][1] : m[t][0];
+}
+
+// format an achieved/target value by type + unit
+export function formatGoalValue(value: number, type: TargetType, unitLabel?: string): string {
+  if (type === 'percentage') return `${value}%`;
+  if (type === 'sar') return `SAR ${value.toLocaleString()}`;
+  return unitLabel ? `${value} ${unitLabel}` : `${value}`;
 }

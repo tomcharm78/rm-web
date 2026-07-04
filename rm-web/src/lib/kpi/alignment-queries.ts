@@ -13,10 +13,12 @@ export type GoalProgress = {
   departmentId: string;
   deputyshipGoalId: string;
   quarter: Quarter;
-  target: number;         // this quarter's target
-  achieved: number;       // completed linked tasks + resolved/closed linked challenges this quarter
-  linkedTotal: number;    // total items linked (attention measure), regardless of completion
+  target: number;
+  achieved: number;
+  linkedTotal: number;
   pace: PaceStatus;
+  targetType: 'count' | 'percentage' | 'sar';
+  unitLabel: string;
 };
 
 export async function getGoalProgress(year: number, scopeDeptId: string | null): Promise<GoalProgress[]> {
@@ -26,7 +28,7 @@ export async function getGoalProgress(year: number, scopeDeptId: string | null):
   const elapsed = quarterElapsedFraction(year, q);
 
   // 1. executive goals in scope
-  let gq = supabase.from('department_goals').select('id, title, title_ar, department_id, deputyship_goal_id, q1_target, q2_target, q3_target, q4_target').eq('status', 'active').eq('year', year);
+  let gq = supabase.from('department_goals').select('id, title, title_ar, department_id, deputyship_goal_id, q1_target, q2_target, q3_target, q4_target, target_type, unit_label, current_value').eq('status', 'active').eq('year', year);
   if (scopeDeptId) gq = gq.eq('department_id', scopeDeptId);
   const { data: goals } = await gq;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,9 +82,10 @@ export async function getGoalProgress(year: number, scopeDeptId: string | null):
   return goalRows.map((g) => {
     const tIds = taskByGoal.get(g.id) ?? [];
     const cIds = challengeByGoal.get(g.id) ?? [];
-    const achievedTasks = tIds.filter((id) => completedTaskIds.has(id)).length;
-    const achievedChallenges = cIds.filter((id) => resolvedChallengeIds.has(id)).length;
-    const achieved = achievedTasks + achievedChallenges;
+    const targetType = (g.target_type ?? 'count') as 'count' | 'percentage' | 'sar';
+    // count goals auto-tally from completed linked work; percentage/SAR use admin-reported current_value
+    const autoAchieved = tIds.filter((id) => completedTaskIds.has(id)).length + cIds.filter((id) => resolvedChallengeIds.has(id)).length;
+    const achieved = targetType === 'count' ? autoAchieved : Number(g.current_value ?? 0);
     const target = quarterTarget(
       { q1Target: g.q1_target, q2Target: g.q2_target, q3Target: g.q3_target, q4Target: g.q4_target }, q
     );
@@ -92,6 +95,7 @@ export async function getGoalProgress(year: number, scopeDeptId: string | null):
       quarter: q, target, achieved,
       linkedTotal: tIds.length + cIds.length,
       pace: paceStatus(achieved, target, elapsed),
+      targetType, unitLabel: g.unit_label ?? '',
     };
   });
 }

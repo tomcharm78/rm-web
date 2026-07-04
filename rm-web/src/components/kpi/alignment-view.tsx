@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, TrendingUp } from 'lucide-react';
 import { useLanguage } from '@/providers/language-provider';
 import { getGoalProgress, getDepartmentAlignment, type GoalProgress } from '@/lib/kpi/alignment-queries';
-import { paceLabel, paceColor, currentQuarter } from '@/types/kpi';
+import { paceLabel, paceColor, currentQuarter, formatGoalValue } from '@/types/kpi';
 
 export function AlignmentView({ scopeDeptId, deptNameById, ar: arProp }: {
   scopeDeptId: string | null;
@@ -56,7 +56,7 @@ export function AlignmentView({ scopeDeptId, deptNameById, ar: arProp }: {
                 {flagged.map((g) => (
                   <div key={g.goalId} style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                     <span>{ar ? g.titleAr || g.title : g.title}{!scopeDeptId && deptNameById?.get(g.departmentId) ? ` · ${deptNameById.get(g.departmentId)}` : ''}</span>
-                    <span style={{ color: paceColor(g.pace), fontWeight: 500, flexShrink: 0 }}>{g.achieved}/{g.target} · {paceLabel(g.pace, ar)}</span>
+                    <span style={{ color: paceColor(g.pace), fontWeight: 500, flexShrink: 0 }}>{formatGoalValue(g.achieved, g.targetType, g.unitLabel)} / {formatGoalValue(g.target, g.targetType, g.unitLabel)} · {paceLabel(g.pace, ar)}</span>
                   </div>
                 ))}
               </div>
@@ -113,7 +113,7 @@ function ProgressBar({ g, ar, deptName }: { g: GoalProgress; ar: boolean; deptNa
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
         <span style={{ fontWeight: 500 }}>{ar ? g.titleAr || g.title : g.title}{deptName ? <span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 400 }}> · {deptName}</span> : null}</span>
-        <span style={{ color, fontWeight: 500 }}>{g.achieved}/{g.target} · {paceLabel(g.pace, ar)}</span>
+        <span style={{ color, fontWeight: 500 }}>{formatGoalValue(g.achieved, g.targetType, g.unitLabel)} / {formatGoalValue(g.target, g.targetType, g.unitLabel)} · {paceLabel(g.pace, ar)}</span>
       </div>
       <div style={{ height: 8, background: 'hsl(var(--muted))', borderRadius: 99, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.5s ease' }} />

@@ -8,7 +8,8 @@ import {
   createDepartmentGoal, updateDepartmentGoal,
   listStrategicGoals, listGoalParents, setGoalParents,
 } from '@/lib/kpi/queries';
-import type { GoalTier, StrategicGoal, DepartmentGoal } from '@/types/kpi';
+import type { GoalTier, StrategicGoal, DepartmentGoal, TargetType } from '@/types/kpi';
+import { targetTypeLabel } from '@/types/kpi';
 
 // tier accent colors (shared with the page)
 export const TIER_COLOR = {
@@ -41,6 +42,9 @@ export function GoalEditorModal({ mode, year, onClose }: { mode: Mode; year: num
   const [q2, setQ2] = useState<string>(ed?.q2Target != null ? String(ed.q2Target) : '');
   const [q3, setQ3] = useState<string>(ed?.q3Target != null ? String(ed.q3Target) : '');
   const [q4, setQ4] = useState<string>(ed?.q4Target != null ? String(ed.q4Target) : '');
+  const [targetType, setTargetType] = useState<TargetType>((ed as DepartmentGoal)?.targetType ?? 'count');
+  const [unitLabel, setUnitLabel] = useState<string>((ed as DepartmentGoal)?.unitLabel ?? '');
+  const [currentValue, setCurrentValue] = useState<string>((ed as DepartmentGoal)?.currentValue != null ? String((ed as DepartmentGoal).currentValue) : '');
 
   // ONLY department (executive) goals carry quarterly targets now
   const showTargets = mode.kind === 'department';
@@ -102,6 +106,7 @@ export function GoalEditorModal({ mode, year, onClose }: { mode: Mode; year: num
         const payload = {
           departmentId: mode.departmentId, deputyshipGoalId, title, titleAr, description, descriptionAr, year: goalYear,
           q1Target: num(q1) ?? 0, q2Target: num(q2) ?? 0, q3Target: num(q3) ?? 0, q4Target: num(q4) ?? 0,
+          targetType, unitLabel: unitLabel.trim(), currentValue: num(currentValue) ?? 0,
         };
         if (ed) await updateDepartmentGoal(ed.id, payload);
         else await createDepartmentGoal(payload);
@@ -191,9 +196,34 @@ export function GoalEditorModal({ mode, year, onClose }: { mode: Mode; year: num
           </div>
         )}
 
-        {/* executive goals only: quarterly targets */}
+        {/* executive goals only: target type + quarterly targets */}
         {showTargets ? (
           <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={lbl}>{ar ? 'نوع الهدف' : 'Target type'}</label>
+                <select value={targetType} onChange={(e) => setTargetType(e.target.value as TargetType)} style={inp}>
+                  <option value="count">{targetTypeLabel('count', ar)}</option>
+                  <option value="percentage">{targetTypeLabel('percentage', ar)}</option>
+                  <option value="sar">{targetTypeLabel('sar', ar)}</option>
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>{ar ? 'وحدة القياس (اختياري)' : 'Unit label (optional)'}</label>
+                <input value={unitLabel} onChange={(e) => setUnitLabel(e.target.value)} placeholder={ar ? 'مثال: مستثمر' : 'e.g. investors'} style={inp} />
+              </div>
+            </div>
+
+            {(targetType === 'percentage' || targetType === 'sar') && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={lbl}>{ar ? 'القيمة الحالية المحققة (يُحدّثها المدير)' : 'Current achieved value (admin-reported)'}</label>
+                <input type="number" min={0} value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} style={inp} />
+                <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 3 }}>
+                  {ar ? 'للأهداف بالنسبة أو المبلغ، أدخل التقدّم الحالي يدويًا (لا يُحسب من المهام).' : 'For percentage/SAR goals, enter current progress manually (not auto-counted from tasks).'}
+                </div>
+              </div>
+            )}
+
             <label style={{ ...lbl, marginBottom: 6 }}>{ar ? 'الأهداف الربعية (يمكن أن تكون غير متساوية)' : 'Quarterly targets (may be uneven)'}</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
               {[['Q1', q1, setQ1], ['Q2', q2, setQ2], ['Q3', q3, setQ3], ['Q4', q4, setQ4]].map(([label, val, setter]) => (
