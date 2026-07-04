@@ -10,6 +10,7 @@ import { getMyDepartmentId, listAllDepartments } from '@/lib/dashboard/dept-quer
 import { yearlyTarget, type StrategicGoal, type DepartmentGoal } from '@/types/kpi';
 import { GoalEditorModal, TIER_COLOR } from '@/components/kpi/goal-editor-modal';
 import { LinkageOverview } from '@/components/kpi/linkage-overview';
+import { AlignmentView } from '@/components/kpi/alignment-view';
 
 function TargetChips({ g, ar }: { g: { q1Target: number; q2Target: number; q3Target: number; q4Target: number }; ar: boolean }) {
   const qs = [['Q1', g.q1Target], ['Q2', g.q2Target], ['Q3', g.q3Target], ['Q4', g.q4Target]] as const;
@@ -139,6 +140,8 @@ export default function KpiPage() {
           })}
         </Section>
       )}
+
+      <AlignmentView scopeDeptId={isSuper ? null : deptId} deptNameById={deptNameById} ar={ar} />
 
       <LinkageOverview scopeDeptId={isSuper ? null : deptId} deptNameById={deptNameById} ar={ar} />
 
