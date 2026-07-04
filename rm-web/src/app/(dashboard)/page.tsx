@@ -1,7 +1,7 @@
 'use client';
-
 import { PersonalPerformance } from '@/components/dashboard/personal-performance';
 import { DeptPerformanceView } from '@/components/dashboard/dept-performance';
+import { AlignmentIndexes } from '@/components/dashboard/alignment-indexes';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Building2, Check, X } from 'lucide-react';
@@ -128,6 +128,9 @@ export default function DashboardHomePage() {
         {(user.role === 'admin' || user.role === 'super_admin') && (
           <DeptPerformanceView role={user.role} userId={user.id} />
         )}
+        {(user.role === 'admin' || user.role === 'super_admin') && (
+  <AlignmentIndexes role={user.role} userId={user.id} />
+)}
       </div>
       <div className="mt-6">
         <ModulesToggle />
