@@ -9,6 +9,7 @@ import { listStrategicGoals, listDepartmentGoals, archiveStrategicGoal, archiveD
 import { getMyDepartmentId, listAllDepartments } from '@/lib/dashboard/dept-queries';
 import { yearlyTarget, type StrategicGoal, type DepartmentGoal } from '@/types/kpi';
 import { GoalEditorModal, TIER_COLOR } from '@/components/kpi/goal-editor-modal';
+import { LinkageOverview } from '@/components/kpi/linkage-overview';
 
 function TargetChips({ g, ar }: { g: { q1Target: number; q2Target: number; q3Target: number; q4Target: number }; ar: boolean }) {
   const qs = [['Q1', g.q1Target], ['Q2', g.q2Target], ['Q3', g.q3Target], ['Q4', g.q4Target]] as const;
@@ -138,6 +139,8 @@ export default function KpiPage() {
           })}
         </Section>
       )}
+
+      <LinkageOverview scopeDeptId={isSuper ? null : deptId} deptNameById={deptNameById} ar={ar} />
 
       {modal && (
         <GoalEditorModal year={year} onClose={() => setModal(null)}

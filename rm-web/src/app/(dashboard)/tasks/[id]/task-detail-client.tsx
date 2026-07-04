@@ -24,6 +24,7 @@ import { TaskMilestones } from '@/components/tasks/task-milestones';
 import { TaskAcceptance } from '@/components/tasks/task-acceptance';
 import { TaskActions } from '@/components/tasks/task-actions';
 import { AttachmentsPanel } from '@/components/attachments/attachments-panel';
+import { GoalLinkPanel } from '@/components/kpi/goal-link-panel';
 import { TaskTransfer } from '@/components/tasks/task-transfer';
 import {
   STATUS_LABELS,
@@ -208,6 +209,10 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
 
       <TaskMilestones task={task} />
       <AttachmentsPanel entityType="task" entityId={task.id} />
+
+      <div className="mt-4">
+        <GoalLinkPanel entityType="task" entityId={task.id} locked={task.status === 'done' || task.status === 'cancelled'} />
+      </div>
 
       {task.status === 'done' && task.closureNote && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 text-sm text-green-900">

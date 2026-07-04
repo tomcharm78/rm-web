@@ -141,3 +141,58 @@ export async function setGoalParents(deputyshipGoalId: string, orgGoalIds: strin
   const { error: insErr } = await supabase.from('strategic_goal_parents').insert(rows);
   if (insErr) { console.error('[setGoalParents insert]', insErr); throw new Error(insErr.message); }
 }
+// ---- task ↔ executive goal links ----
+
+export async function listTaskGoals(taskId: string): Promise<string[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from('task_goals').select('department_goal_id').eq('task_id', taskId);
+  if (error) { console.error('[listTaskGoals]', error); throw new Error(error.message); }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => r.department_goal_id as string);
+}
+
+export async function setTaskGoals(taskId: string, goalIds: string[]): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error: delErr } = await supabase.from('task_goals').delete().eq('task_id', taskId);
+  if (delErr) { console.error('[setTaskGoals delete]', delErr); throw new Error(delErr.message); }
+  if (goalIds.length === 0) return;
+  const rows = goalIds.map((department_goal_id) => ({ task_id: taskId, department_goal_id, linked_by_id: user?.id ?? null }));
+  const { error: insErr } = await supabase.from('task_goals').insert(rows);
+  if (insErr) { console.error('[setTaskGoals insert]', insErr); throw new Error(insErr.message); }
+}
+
+// ---- challenge ↔ executive goal links ----
+
+export async function listChallengeGoals(challengeId: string): Promise<string[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from('challenge_goals').select('department_goal_id').eq('challenge_id', challengeId);
+  if (error) { console.error('[listChallengeGoals]', error); throw new Error(error.message); }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => r.department_goal_id as string);
+}
+
+export async function setChallengeGoals(challengeId: string, goalIds: string[]): Promise<void> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error: delErr } = await supabase.from('challenge_goals').delete().eq('challenge_id', challengeId);
+  if (delErr) { console.error('[setChallengeGoals delete]', delErr); throw new Error(delErr.message); }
+  if (goalIds.length === 0) return;
+  const rows = goalIds.map((department_goal_id) => ({ challenge_id: challengeId, department_goal_id, linked_by_id: user?.id ?? null }));
+  const { error: insErr } = await supabase.from('challenge_goals').insert(rows);
+  if (insErr) { console.error('[setChallengeGoals insert]', insErr); throw new Error(insErr.message); }
+}
+
+// list the admin's own department executive goals (for the linking picker)
+export async function listMyDepartmentExecutiveGoals(): Promise<{ id: string; title: string; titleAr: string }[]> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data: me } = await supabase.from('users').select('department_id').eq('id', user.id).maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const deptId = (me as any)?.department_id;
+  if (!deptId) return [];
+  const { data } = await supabase.from('department_goals').select('id, title, title_ar').eq('department_id', deptId).eq('status', 'active').order('created_at');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((g: any) => ({ id: g.id, title: g.title, titleAr: g.title_ar ?? '' }));
+}

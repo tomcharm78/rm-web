@@ -16,6 +16,7 @@ import { CollapsibleCard } from '@/components/challenges/collapsible-card';
 import { ChallengeStakeholders } from '@/components/challenges/challenge-stakeholders';
 import { ChallengeJournal } from '@/components/challenges/challenge-journal';
 import { AttachmentsPanel } from '@/components/attachments/attachments-panel';
+import { GoalLinkPanel } from '@/components/kpi/goal-link-panel';
 import { TaskFormModal } from '@/components/tasks/task-form-modal';
 import { ClipboardList } from 'lucide-react';
 import type { ChallengeStatus } from '@/types/challenge';
@@ -252,6 +253,10 @@ export default function ChallengeDetailPage() {
       <ChallengeStakeholders challengeId={id} />
       <ChallengeJournal challengeId={id} />
       <AttachmentsPanel entityType="challenge" entityId={id} />
+
+      <div className="mt-4">
+        <GoalLinkPanel entityType="challenge" entityId={id} locked={c.status === 'resolved' || c.status === 'closed'} />
+      </div>
 
       {/* Status history — collapsed by default */}
       <CollapsibleCard title={ar ? 'سجل الحالات' : 'Status history'} icon={<History className="h-4 w-4 text-slate-500" />} count={history.length}>
