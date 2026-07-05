@@ -236,6 +236,7 @@ export type TaskMilestoneRow = {
   sort_order: number;
   assigned_to_id: string | null;
   due_date: string | null;
+  weight: number | null;
   organization_id: string;
   created_at: string;
   updated_at: string;
@@ -252,6 +253,7 @@ export type MilestoneSubtaskRow = {
   assigned_to_id: string | null;
   support_status: SubtaskSupportStatus | null;
   support_decline_reason: string | null;
+  due_date: string | null;
   organization_id: string;
   created_at: string;
   updated_at: string;
@@ -267,6 +269,7 @@ export type MilestoneSubtask = {
   assignedToId: string | null;
   supportStatus: SubtaskSupportStatus | null;
   supportDeclineReason: string | null;
+  dueDate: string | null;
 };
 
 export type TaskMilestone = {
@@ -278,6 +281,7 @@ export type TaskMilestone = {
   sortOrder: number;
   assignedToId: string | null;
   dueDate: string | null;
+  weight: number | null;
   subtasks: MilestoneSubtask[];
 };
 
@@ -292,6 +296,7 @@ export function dbSubtaskToSubtask(r: MilestoneSubtaskRow): MilestoneSubtask {
     assignedToId: r.assigned_to_id,
     supportStatus: r.support_status,
     supportDeclineReason: r.support_decline_reason,
+    dueDate: r.due_date ?? null,
   };
 }
 
@@ -305,6 +310,7 @@ export function dbMilestoneToMilestone(r: TaskMilestoneRow): TaskMilestone {
     sortOrder: r.sort_order,
     assignedToId: r.assigned_to_id,
     dueDate: r.due_date,
+    weight: r.weight ?? null,
     subtasks: [],
   };
 }
@@ -318,11 +324,36 @@ export function milestoneOneProgress(m: TaskMilestone): number {
   return m.isDone ? 100 : 0;
 }
 
-// Task % = simple average of each milestone's progress. 0 if no milestones.
+// Task % = weighted average of each milestone's progress.
+// If all weights are null (default), falls back to simple average (identical to previous behaviour).
+// Weight warning (sum != 1) is handled in the UI only — completion always computes on stored weights.
 export function milestoneProgress(items: TaskMilestone[]): number {
   if (items.length === 0) return 0;
-  const sum = items.reduce((acc, m) => acc + milestoneOneProgress(m), 0);
-  return Math.round(sum / items.length);
+  const allNull = items.every((m) => m.weight === null);
+  if (allNull) {
+    const sum = items.reduce((acc, m) => acc + milestoneOneProgress(m), 0);
+    return Math.round(sum / items.length);
+  }
+  const equalShare = 1 / items.length;
+  let total = 0;
+  for (const m of items) {
+    const w = m.weight ?? equalShare;
+    total += milestoneOneProgress(m) * w;
+  }
+  return Math.round(total * 100) / 100 > 100 ? 100 : Math.round(total);
+}
+
+// Returns the default equal-share weight for display when weight is null.
+export function defaultWeight(count: number): number {
+  return count > 0 ? Math.round((1 / count) * 1000) / 1000 : 1;
+}
+
+// Returns true when manually-set weights don't sum to ~1.0 (soft warning only).
+export function weightsOutOfBalance(items: TaskMilestone[]): boolean {
+  const allNull = items.every((m) => m.weight === null);
+  if (allNull) return false;
+  const sum = items.reduce((acc, m) => acc + (m.weight ?? 0), 0);
+  return Math.abs(sum - 1) > 0.01;
 }
 // ===================== Transfer requests =====================
 export type TransferStatus = 'requested' | 'approved' | 'rejected' | 'executed';

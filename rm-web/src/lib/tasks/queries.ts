@@ -482,8 +482,8 @@ async function recomputeTaskCompletion(
   supabase: ReturnType<typeof createClient>,
   taskId: string
 ): Promise<void> {
-  const { data: ms } = await supabase.from('task_milestones').select('id, is_done').eq('task_id', taskId);
-  const milestones = (ms ?? []) as { id: string; is_done: boolean }[];
+  const { data: ms } = await supabase.from('task_milestones').select('id, is_done, weight').eq('task_id', taskId);
+  const milestones = (ms ?? []) as { id: string; is_done: boolean; weight: number | null }[];
   if (milestones.length === 0) {
     await supabase.from('tasks').update({ completion_percentage: 0 }).eq('id', taskId);
     return;
@@ -499,7 +499,15 @@ async function recomputeTaskCompletion(
     if (ss.length === 0) return m.is_done ? 100 : 0;
     return Math.round((ss.filter((s) => s.is_done).length / ss.length) * 100);
   });
-  const pct = Math.round(perMilestone.reduce((a, b) => a + b, 0) / milestones.length);
+  const allNull = milestones.every((m) => m.weight === null);
+  let pct: number;
+  if (allNull) {
+    pct = Math.round(perMilestone.reduce((a, b) => a + b, 0) / milestones.length);
+  } else {
+    const equalShare = 1 / milestones.length;
+    const weighted = milestones.reduce((acc, m, i) => acc + (m.weight ?? equalShare) * perMilestone[i], 0);
+    pct = Math.min(100, Math.round(weighted));
+  }
   await supabase.from('tasks').update({ completion_percentage: pct }).eq('id', taskId);
 }
 
@@ -564,13 +572,12 @@ export async function addTaskMilestone(
   return dbMilestoneToMilestone(data as TaskMilestoneRow);
 }
 
-export async function editTaskMilestone(milestoneId: string, title: string, titleAr: string): Promise<void> {
+export async function editTaskMilestone(milestoneId: string, title: string, titleAr: string, dueDate?: string | null): Promise<void> {
   const supabase = createClient();
   if (!title.trim()) throw new Error('milestone_title_required');
-  const { error } = await supabase
-    .from('task_milestones')
-    .update({ title: title.trim(), title_ar: titleAr.trim(), updated_at: new Date().toISOString() })
-    .eq('id', milestoneId);
+  const patch: Record<string, unknown> = { title: title.trim(), title_ar: titleAr.trim(), updated_at: new Date().toISOString() };
+  if (dueDate !== undefined) patch.due_date = dueDate || null;
+  const { error } = await supabase.from('task_milestones').update(patch).eq('id', milestoneId);
   if (error) throw new Error(error.message);
 }
 
@@ -773,7 +780,8 @@ export async function addMilestoneSubtask(
   milestoneId: string,
   taskId: string,
   title: string,
-  titleAr: string
+  titleAr: string,
+  dueDate?: string | null
 ): Promise<void> {
   const supabase = createClient();
   if (!title.trim()) throw new Error('subtask_title_required');
@@ -795,11 +803,19 @@ export async function addMilestoneSubtask(
       title_ar: titleAr.trim(),
       sort_order: count ?? 0,
       assigned_to_id: ms?.assigned_to_id ?? null,
+      due_date: dueDate || null,
     });
   if (error) throw new Error(error.message);
   await recomputeTaskCompletion(supabase, taskId);
 }
-
+export async function editMilestoneSubtask(subtaskId: string, title: string, titleAr: string, dueDate?: string | null): Promise<void> {
+  const supabase = createClient();
+  if (!title.trim()) throw new Error('subtask_title_required');
+  const patch: Record<string, unknown> = { title: title.trim(), title_ar: titleAr.trim(), updated_at: new Date().toISOString() };
+  if (dueDate !== undefined) patch.due_date = dueDate || null;
+  const { error } = await supabase.from('milestone_subtasks').update(patch).eq('id', subtaskId);
+  if (error) throw new Error(error.message);
+}
 export async function toggleMilestoneSubtask(subtaskId: string, taskId: string, isDone: boolean): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase
@@ -824,6 +840,33 @@ export async function setMilestoneDueDate(milestoneId: string, dueDate: string |
     .update({ due_date: dueDate || null, updated_at: new Date().toISOString() })
     .eq('id', milestoneId);
   if (error) throw new Error(error.message);
+}
+export async function setMilestoneWeight(milestoneId: string, taskId: string, weight: number | null): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('task_milestones')
+    .update({ weight, updated_at: new Date().toISOString() })
+    .eq('id', milestoneId);
+  if (error) throw new Error(error.message);
+  await recomputeTaskCompletion(supabase, taskId);
+}
+export async function reorderMilestone(milestoneId: string, taskId: string, direction: 'up' | 'down'): Promise<void> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('task_milestones')
+    .select('id, sort_order')
+    .eq('task_id', taskId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  const rows = (data ?? []) as { id: string; sort_order: number }[];
+  const idx = rows.findIndex((r) => r.id === milestoneId);
+  if (idx === -1) return;
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= rows.length) return;
+  const a = rows[idx];
+  const b = rows[swapIdx];
+  await supabase.from('task_milestones').update({ sort_order: b.sort_order, updated_at: new Date().toISOString() }).eq('id', a.id);
+  await supabase.from('task_milestones').update({ sort_order: a.sort_order, updated_at: new Date().toISOString() }).eq('id', b.id);
 }
 // ===================== Transfer requests =====================
 // An assignee requests handing their task to someone else; an eligible approver
