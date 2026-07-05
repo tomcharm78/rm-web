@@ -34,12 +34,14 @@ import {
   Trash2,
   Filter,
   X,
+  Paperclip,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { listInvestors, deleteInvestor } from '@/lib/investors/queries';
+import { getAttachmentCounts } from '@/lib/attachments/queries';
 import { investorsToCsv, downloadCsv } from '@/lib/investors/csv';
 import {
   DOMAIN_LABELS,
@@ -88,7 +90,13 @@ export function InvestorsPageClient() {
       domain: domain || undefined,
     }),
   });
-
+  // Attachment counts for the visible investors (one query, for the paperclip badge)
+  const attachmentCountsQ = useQuery({
+    queryKey: ['investor-attachment-counts', investors.map((i) => i.id)],
+    queryFn: () => getAttachmentCounts('investor', investors.map((i) => i.id)),
+    enabled: investors.length > 0,
+  });
+  const attachmentCounts = attachmentCountsQ.data ?? {};
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteInvestor,
@@ -287,6 +295,7 @@ export function InvestorsPageClient() {
                           {language === 'ar' ? 'تحميل' : 'Upload'}
                         </span>
                       )}
+                      
                       {inv.website && (
                         <a
                           href={inv.website}
@@ -335,6 +344,15 @@ export function InvestorsPageClient() {
                     {canMutate && (
                       <td className="px-2 py-3 align-top whitespace-nowrap">
                         <div className="flex items-center gap-1">
+                          {(attachmentCounts[inv.id] ?? 0) > 0 && (
+                            <span
+                              className="h-8 inline-flex items-center gap-0.5 px-1.5 rounded-md text-slate-500 bg-slate-50"
+                              title={language === 'ar' ? 'مرفقات' : 'Attachments'}
+                            >
+                              <Paperclip className="h-4 w-4" />
+                              <span className="text-[11px] font-medium">{attachmentCounts[inv.id]}</span>
+                            </span>
+                          )}
                           <button
                             type="button"
                             onClick={() => setModal({ mode: 'edit', investor: inv })}
@@ -436,3 +454,4 @@ function hostnameOf(url: string): string {
     return url;
   }
 }
+

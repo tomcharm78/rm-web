@@ -69,7 +69,6 @@ export async function uploadAttachment(params: {
   if (params.file.size > cap) {
     throw new Error(`file_too_large:${humanSize(cap)}`);
   }
-
   // path: org/{orgId}/{entityType}/{entityId}/{uuid}-{safeName}
   const uid = (crypto as Crypto).randomUUID();
   const path = `org/${params.organizationId}/${params.entityType}/${params.entityId}/${uid}-${safeName(params.file.name)}`;
@@ -171,4 +170,19 @@ export async function getMyAttachmentsControl(): Promise<{
     organizationId: row.organization_id ?? null,
     enabled,
   };
+}
+
+// Batch count of non-deleted attachments per entity, for list badges (one query).
+export async function getAttachmentCounts(entityType: AttachmentEntityType, entityIds: string[]): Promise<Record<string, number>> {
+  if (entityIds.length === 0) return {};
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('attachments').select('entity_id')
+    .eq('entity_type', entityType).in('entity_id', entityIds)
+    .is('deleted_at', null);
+  if (error) throw new Error(error.message);
+  const counts: Record<string, number> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of (data ?? []) as any[]) counts[r.entity_id] = (counts[r.entity_id] ?? 0) + 1;
+  return counts;
 }
