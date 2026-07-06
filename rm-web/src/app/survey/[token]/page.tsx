@@ -221,7 +221,7 @@ function QuestionField({ q, value, onChange, onToggleMulti }: {
           <button key={o.id} type="button" onClick={() => onChange(o.id)}
             className={'w-full text-start rounded-md border px-3 py-2 text-sm flex items-center gap-2 ' + (value === o.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200')}>
             <span className={'h-3.5 w-3.5 rounded-full border shrink-0 ' + (value === o.id ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300')} />
-            <span dir="auto">{o.labelAr || o.label}{o.label && o.labelAr ? ` · ${o.label}` : ''}</span>
+            <span className="flex flex-col gap-0.5 min-w-0 flex-1"><span dir="rtl" className="text-start">{o.labelAr || o.label}</span>{o.label && o.labelAr && <span dir="ltr" className="text-xs text-slate-500 text-start">{o.label}</span>}</span>
           </button>
         ))}
       </div>
@@ -237,7 +237,7 @@ function QuestionField({ q, value, onChange, onToggleMulti }: {
             <span className={'h-3.5 w-3.5 rounded-sm border shrink-0 flex items-center justify-center ' + (cur.includes(o.id) ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300')}>
               {cur.includes(o.id) && <Check className="h-2.5 w-2.5 text-white" />}
             </span>
-            <span dir="auto">{o.labelAr || o.label}{o.label && o.labelAr ? ` · ${o.label}` : ''}</span>
+            <span className="flex flex-col gap-0.5 min-w-0 flex-1"><span dir="rtl" className="text-start">{o.labelAr || o.label}</span>{o.label && o.labelAr && <span dir="ltr" className="text-xs text-slate-500 text-start">{o.label}</span>}</span>
           </button>
         ))}
       </div>
@@ -245,7 +245,6 @@ function QuestionField({ q, value, onChange, onToggleMulti }: {
   }
   return null;
 }
-
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">{children}</div>;
 }
