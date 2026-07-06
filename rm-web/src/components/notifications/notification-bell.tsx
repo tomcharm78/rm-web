@@ -79,6 +79,8 @@ export function NotificationBell() {
     setOpen(false);
     if (n.entityType === 'task' && n.entityId) {
       router.push(`/tasks/${n.entityId}`);
+    } else if (n.entityType === 'vacation') {
+      router.push('/vacations');
     }
   };
 

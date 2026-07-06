@@ -1,6 +1,8 @@
 'use client';
 import { PersonalPerformance } from '@/components/dashboard/personal-performance';
 import { DeptPerformanceView } from '@/components/dashboard/dept-performance';
+import { VacationCountdown } from '@/components/vacations/vacation-countdown';
+import { TeamLeaveGantt } from '@/components/vacations/team-leave-gantt';
 import { AlignmentIndexes } from '@/components/dashboard/alignment-indexes';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -124,9 +126,13 @@ export default function DashboardHomePage() {
         </div>
       </div>
       <div className="mt-8">
+        <VacationCountdown />
         <PersonalPerformance userId={user.id} userName={user.name} />
         {(user.role === 'admin' || user.role === 'super_admin') && (
           <DeptPerformanceView role={user.role} userId={user.id} />
+        )}
+        {(user.role === 'admin' || user.role === 'super_admin') && (
+          <TeamLeaveGantt role={user.role} />
         )}
         {(user.role === 'admin' || user.role === 'super_admin') && (
   <AlignmentIndexes role={user.role} userId={user.id} />

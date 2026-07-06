@@ -73,7 +73,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'sessions', href: '/sessions', icon: CalendarClock, labelEn: 'Sessions', labelAr: 'الجلسات', enabled: true },
   { id: 'email', href: '/email', icon: Mail, labelEn: 'Email', labelAr: 'البريد', enabled: true, module: 'emails' },
   { id: 'surveys', href: '/surveys', icon: ClipboardList, labelEn: 'Surveys', labelAr: 'الاستبيانات', enabled: true, module: 'survey' },
-  { id: 'vacations', href: '/vacations', icon: PlaneTakeoff, labelEn: 'Vacations', labelAr: 'الإجازات', enabled: false },
+  { id: 'vacations', href: '/vacations', icon: PlaneTakeoff, labelEn: 'Vacations', labelAr: 'الإجازات', enabled: true, module: 'vacations' },
   { id: 'approvals', href: '/approvals', icon: CheckCircle2, labelEn: 'Approvals', labelAr: 'الموافقات', enabled: false },
   { id: 'reports', href: '/reports', icon: BarChart3, labelEn: 'Reports', labelAr: 'التقارير', enabled: false },
   { id: 'kpis', href: '/kpis', icon: Target, labelEn: 'KPIs', labelAr: 'مؤشرات الأداء', enabled: true, module: 'kpis', roles: ['admin', 'super_admin'] },
