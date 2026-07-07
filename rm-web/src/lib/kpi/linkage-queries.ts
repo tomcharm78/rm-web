@@ -9,6 +9,7 @@ export type LinkageRow = {
   linked: boolean;
   goalTitles: string[];
   status: 'open' | 'closed';
+  dueDate: string | null;
   href: string;
 };
 
@@ -17,7 +18,7 @@ export async function getLinkageOverview(scopeDeptId: string | null): Promise<Li
   const supabase = createClient();
 
   // ---- tasks (have department_id directly) ----
-  let tq = supabase.from('tasks').select('id, title, title_ar, department_id, status').is('deleted_at', null);
+  let tq = supabase.from('tasks').select('id, title, title_ar, department_id, status, tat_due_date').is('deleted_at', null);
   if (scopeDeptId) tq = tq.eq('department_id', scopeDeptId);
   const { data: tasks } = await tq;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,6 +73,7 @@ export async function getLinkageOverview(scopeDeptId: string | null): Promise<Li
       departmentId: t.department_id ?? null,
       linked: goals.length > 0, goalTitles: goals,
       status: taskClosed(t.status) ? 'closed' : 'open',
+      dueDate: t.tat_due_date ?? null,
       href: `/tasks/${t.id}`,
     });
   }
@@ -85,6 +87,7 @@ export async function getLinkageOverview(scopeDeptId: string | null): Promise<Li
       departmentId: deptId,
       linked: goals.length > 0, goalTitles: goals,
       status: challengeClosed(c.status) ? 'closed' : 'open',
+      dueDate: null,
       href: `/challenges/${c.id}`,
     });
   }

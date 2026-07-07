@@ -17,11 +17,24 @@ export function LinkageOverview({ scopeDeptId, deptNameById, ar: arProp }: {
   const { language } = useLanguage();
   const ar = arProp ?? language === 'ar';
   const [filter, setFilter] = useState<Filter>('all');
+  const [fMonth, setFMonth] = useState<string>('');
+  const [fYear, setFYear] = useState<string>('');
 
   const q = useQuery({ queryKey: ['linkage-overview', scopeDeptId], queryFn: () => getLinkageOverview(scopeDeptId) });
   const all = q.data ?? [];
 
-  const rows = all.filter((r) => filter === 'all' ? true : filter === 'linked' ? r.linked : !r.linked);
+  const rows = all
+    .filter((r) => filter === 'all' ? true : filter === 'linked' ? r.linked : !r.linked)
+    .filter((r) => {
+      // date filter applies only to dated items (tasks); undated (challenges) always show
+      if (!r.dueDate) return true;
+      const d = new Date(r.dueDate);
+      if (fYear && d.getFullYear() !== Number(fYear)) return false;
+      if (fMonth && d.getMonth() + 1 !== Number(fMonth)) return false;
+      return true;
+    });
+  // available years from the data, for the year dropdown
+  const years = Array.from(new Set(all.map((r) => r.dueDate ? new Date(r.dueDate).getFullYear() : null).filter(Boolean))).sort((a, b) => (b as number) - (a as number));
 
   const linkedCount = all.filter((r) => r.linked).length;
   const unlinkedCount = all.length - linkedCount;
@@ -35,7 +48,19 @@ export function LinkageOverview({ scopeDeptId, deptNameById, ar: arProp }: {
             {ar ? 'المهام والتحديات المرتبطة وغير المرتبطة بالأهداف' : 'tasks & challenges linked / not linked to goals'}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select value={fYear} onChange={(e) => setFYear(e.target.value)}
+            style={{ fontSize: 12, padding: '5px 8px', borderRadius: 7, border: '0.5px solid hsl(var(--border))', background: 'transparent', color: 'hsl(var(--foreground))' }}>
+            <option value="">{ar ? 'كل السنوات' : 'All years'}</option>
+            {years.map((y) => <option key={y as number} value={y as number}>{y as number}</option>)}
+          </select>
+          <select value={fMonth} onChange={(e) => setFMonth(e.target.value)}
+            style={{ fontSize: 12, padding: '5px 8px', borderRadius: 7, border: '0.5px solid hsl(var(--border))', background: 'transparent', color: 'hsl(var(--foreground))' }}>
+            <option value="">{ar ? 'كل الشهور' : 'All months'}</option>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <option key={m} value={m}>{new Date(2000, m - 1, 1).toLocaleDateString(ar ? 'ar' : 'en', { month: 'short' })}</option>
+            ))}
+          </select>
           {(['all', 'unlinked', 'linked'] as Filter[]).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               style={{
