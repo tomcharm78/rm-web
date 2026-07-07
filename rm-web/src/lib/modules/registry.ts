@@ -6,7 +6,7 @@
 
 export type ModuleKey =
   // premium
-  | 'vacations' | 'reports' | 'survey' | 'hr_training' | 'community'
+  | 'vacations' | 'reports' | 'survey' | 'hr_training' | 'community' | 'approvals'
   | 'events' | 'kpis' | 'emails' | 'attachments' | 'exports'
   // core
   | 'investors' | 'tasks' | 'sessions' | 'challenges' | 'users' | 'contacts' | 'dashboard';
@@ -35,6 +35,7 @@ export const MODULES: ModuleDef[] = [
   { key: 'reports',     labelEn: 'Reports',        labelAr: 'التقارير',         premium: true },
   { key: 'survey',      labelEn: 'Surveys',        labelAr: 'الاستبيانات',      premium: true },
   { key: 'kpis',        labelEn: 'KPIs',           labelAr: 'مؤشرات الأداء',    premium: true },
+  { key: 'approvals',   labelEn: 'Approvals',      labelAr: 'الموافقات',        premium: true },
   { key: 'vacations',   labelEn: 'Vacations',      labelAr: 'الإجازات',         premium: true },
   { key: 'hr_training', labelEn: 'HR & Training',  labelAr: 'الموارد والتدريب', premium: true },
   { key: 'community',   labelEn: 'Community',      labelAr: 'المجتمع',          premium: true },

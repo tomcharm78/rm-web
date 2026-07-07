@@ -1,6 +1,6 @@
 // Attachments — generic file attachments across modules.
 
-export type AttachmentEntityType = 'investor' | 'task' | 'challenge' | 'session';
+export type AttachmentEntityType = 'investor' | 'task' | 'challenge' | 'session' | 'approval';
 export type AttachmentClassification = 'general' | 'confidential' | 'restricted';
 export type AttachmentPurpose = 'record' | 'transient';
 
