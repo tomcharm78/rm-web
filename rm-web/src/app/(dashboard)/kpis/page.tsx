@@ -10,6 +10,7 @@ import { getMyDepartmentId, listAllDepartments } from '@/lib/dashboard/dept-quer
 import { yearlyTarget, type StrategicGoal, type DepartmentGoal } from '@/types/kpi';
 import { GoalEditorModal, TIER_COLOR } from '@/components/kpi/goal-editor-modal';
 import { LinkageOverview } from '@/components/kpi/linkage-overview';
+import { GanttExportButton } from '@/components/kpi/gantt-export-button';
 import { AlignmentView } from '@/components/kpi/alignment-view';
 
 function TargetChips({ g, ar }: { g: { q1Target: number; q2Target: number; q3Target: number; q4Target: number }; ar: boolean }) {
@@ -144,7 +145,7 @@ export default function KpiPage() {
       <AlignmentView scopeDeptId={isSuper ? null : deptId} deptNameById={deptNameById} ar={ar} />
 
       <LinkageOverview scopeDeptId={isSuper ? null : deptId} deptNameById={deptNameById} ar={ar} />
-
+      <GanttExportButton isSuper={isSuper} deptId={deptId} deptName={deptId ? (deptNameById.get(deptId) ?? null) : null} ar={ar} />
       {modal && (
         <GoalEditorModal year={year} onClose={() => setModal(null)}
           mode={modal.kind === 'strategic'
