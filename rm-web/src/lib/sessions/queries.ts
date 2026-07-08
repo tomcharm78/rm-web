@@ -167,7 +167,7 @@ export async function createSession(input: SessionFormInput): Promise<Session> {
     throw new Error(error.message);
   }
   // push visitor attendees into the Contacts directory (non-blocking)
-  void upsertContactsFromAttendees(input.visitorAttendees);
+  void upsertContactsFromAttendees([...input.mohAttendees, ...input.visitorAttendees]);
   return dbRowToSession(data as SessionRow);
 }
 

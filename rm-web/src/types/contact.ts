@@ -41,7 +41,9 @@ export type DirectoryEntry = {
   nameAr: string;
   email: string | null;
   organization: string;
+  organizationAr?: string;
   role: string;
+  roleAr?: string;
   phone: string;
   type: ContactType | 'investor';
   editable: boolean;

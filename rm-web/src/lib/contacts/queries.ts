@@ -116,7 +116,9 @@ export async function listDirectory(): Promise<DirectoryEntry[]> {
       nameAr: r.representative_name_ar ?? '',
       email: r.email ?? null,
       organization: r.company_name ?? '',
+      organizationAr: r.company_name_ar ?? '',
       role: r.position ?? '',
+      roleAr: r.position_ar ?? '',
       phone,
       type: 'investor' as const,
       editable: false,
@@ -158,7 +160,7 @@ export async function upsertContactsFromAttendees(attendees: {
         type: 'external',
       });
     }
-  } catch {
-    // never block the session save on a directory write
+  } catch (e) {
+    console.error('[upsertContacts] failed:', e);
   }
 }

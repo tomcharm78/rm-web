@@ -36,7 +36,9 @@ export function AttendeesEditor({ kind, value, onChange, disabled }: Props) {con
       name: e.name ?? '',
       nameAr: e.nameAr ?? '',
       position: e.role ?? '',
+      positionAr: e.roleAr ?? '',
       organization: e.organization ?? '',
+      organizationAr: e.organizationAr ?? '',
       email: e.email ?? '',
       phone: e.phone ?? '',
     }));
