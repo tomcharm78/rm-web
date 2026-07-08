@@ -52,7 +52,7 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
   const { language } = useLanguage();
   const ar = language === 'ar';
 
-  const taskQ = useQuery({ queryKey: ['task', taskId], queryFn: () => getTask(taskId) });
+  const taskQ = useQuery({ queryKey: ['task', taskId], queryFn: () => getTask(taskId), refetchInterval: 10_000 });
   const historyQ = useQuery({
     queryKey: ['task-history', taskId],
     queryFn: () => getTaskStatusHistory(taskId),

@@ -11,7 +11,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 30 * 1000, // 30 seconds — sensible default for an internal app
-            refetchOnWindowFocus: false, // disruptive for a desktop app
+            refetchOnWindowFocus: true, // refetch stale data on tab focus — keeps cross-user changes visible
             retry: 1,
           },
           mutations: {

@@ -81,6 +81,8 @@ export function NotificationBell() {
       router.push(`/tasks/${n.entityId}`);
     } else if (n.entityType === 'vacation') {
       router.push('/vacations');
+    } else if (n.entityType === 'approval') {
+      router.push('/approvals');
     }
   };
 
