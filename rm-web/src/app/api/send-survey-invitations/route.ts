@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
   const { data: org } = await admin.from('organizations').select('name, name_ar').eq('id', orgId).maybeSingle();
   // the sender's department = administration/deputyship stamp
   const { data: membership } = await admin
-    .from('users').select('departments(name, name_ar)').eq('id', me.id).maybeSingle();
+    .from('users').select('departments!users_department_id_fkey(name, name_ar)').eq('id', me.id).maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dept = (membership as any)?.departments;
 

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useLanguage } from '@/providers/language-provider';
 import { createClient } from '@/lib/supabase/client';
 import { getMyDepartmentId } from '@/lib/dashboard/dept-queries';
+import { listMyPmDepartments } from '@/lib/users/queries';
 import {
   getOverallAlignment, getPerDepartmentAlignment, getDeputyshipGoalIndex,
   getSingleDepartmentAlignment, getEmployeeAlignment,
@@ -64,14 +65,24 @@ export function AlignmentIndexes({ role, userId }: { role: string; userId: strin
     },
   });
 
-  const isSuper = role === 'super_admin';
+  const isSuper = role === 'super_admin' || role === 'pmo';
+  const isPm = role === 'pm';
   const enabled = kpisOn.data === true;
-
   const overallQ = useQuery({ queryKey: ['align-overall', YEAR], queryFn: () => getOverallAlignment(YEAR), enabled: enabled && isSuper });
   const perDeptQ = useQuery({ queryKey: ['align-per-dept', YEAR], queryFn: () => getPerDepartmentAlignment(YEAR), enabled: enabled && isSuper });
   const depGoalQ = useQuery({ queryKey: ['align-dep-goals', YEAR], queryFn: () => getDeputyshipGoalIndex(YEAR), enabled: enabled && isSuper });
 
-  const myDeptQ = useQuery({ queryKey: ['my-dept-id', userId], queryFn: getMyDepartmentId, enabled: enabled && !isSuper });
+  const pmDeptsQ = useQuery({ queryKey: ['my-pm-departments', userId], queryFn: listMyPmDepartments, enabled: enabled && isPm });
+  const pmDepts = pmDeptsQ.data ?? [];
+  const pmAlignQ = useQuery({
+    queryKey: ['align-pm-depts', YEAR, pmDepts.map((d) => d.id).join(',')],
+    queryFn: async () =>
+      Promise.all(
+        pmDepts.map(async (d) => ({ dept: d, data: await getSingleDepartmentAlignment(YEAR, d.id) })),
+      ),
+    enabled: enabled && isPm && pmDepts.length > 0,
+  });
+  const myDeptQ = useQuery({ queryKey: ['my-dept-id', userId], queryFn: getMyDepartmentId, enabled: enabled && !isSuper && !isPm });
   const myDeptId = myDeptQ.data ?? null;
   const deptAlignQ = useQuery({ queryKey: ['align-my-dept', YEAR, myDeptId], queryFn: () => getSingleDepartmentAlignment(YEAR, myDeptId!), enabled: enabled && !isSuper && !!myDeptId });
   const empAlignQ = useQuery({ queryKey: ['align-employees', YEAR, myDeptId], queryFn: () => getEmployeeAlignment(YEAR, myDeptId!), enabled: enabled && !isSuper && !!myDeptId });
@@ -120,6 +131,21 @@ export function AlignmentIndexes({ role, userId }: { role: string; userId: strin
                   label={(ar ? g.titleAr || g.title : g.title) || '—'}
                   sub={ar ? (g.childCount + ' أهداف تنفيذية') : (g.childCount + ' exec goals')}
                   pct={g.indexPct}
+                />
+              ))
+            ) : <Empty ar={ar} />}
+          </Card>
+        </div>
+      ) : isPm ? (
+        <div style={{ display: 'grid', gap: 16 }}>
+          <Card title={ar ? 'محاذاة الإدارات المُسندة' : 'Assigned-Departments Alignment'}>
+            {pmAlignQ.isError ? <Empty ar={ar} /> : (pmAlignQ.data ?? []).length ? (
+              (pmAlignQ.data ?? []).map(({ dept, data }) => (
+                <AlignBar
+                  key={dept.id}
+                  label={(ar ? dept.nameAr || dept.name : dept.name) || '—'}
+                  sub={data && data.totalCompleted > 0 ? data.alignedCompleted + '/' + data.totalCompleted + ' · ' + bandLabel(data.alignmentPct, ar) : (ar ? 'لا بيانات' : 'no data')}
+                  pct={data?.alignmentPct ?? 0}
                 />
               ))
             ) : <Empty ar={ar} />}

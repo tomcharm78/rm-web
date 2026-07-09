@@ -57,7 +57,7 @@ export type Database = {
           name: string;
           name_ar: string;
           email: string;
-          role: 'super_admin' | 'admin' | 'rm' | 'arm' | 'investor';
+          role: 'super_admin' | 'admin' | 'rm' | 'arm' | 'investor' | 'pmo' | 'pm';
           avatar: string | null;
           is_active: boolean;
           force_password_change: boolean;
@@ -77,7 +77,7 @@ export type Database = {
           name: string;
           name_ar: string;
           email: string;
-          role: 'super_admin' | 'admin' | 'rm' | 'arm' | 'investor';
+          role: 'super_admin' | 'admin' | 'rm' | 'arm' | 'investor' | 'pmo' | 'pm';
           avatar?: string | null;
           is_active?: boolean;
           force_password_change?: boolean;
@@ -315,7 +315,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: Record<string, never>;
     Enums: {
-      user_role: 'super_admin' | 'admin' | 'rm' | 'arm' | 'investor';
+      user_role: 'super_admin' | 'admin' | 'rm' | 'arm' | 'investor' | 'pmo' | 'pm';
       session_status: 'draft' | 'locked';
     };
     CompositeTypes: Record<string, never>;
@@ -327,7 +327,7 @@ export type Database = {
 // Keep them so consumers (types/index.ts, etc.) don't break.
 // =============================================================================
 
-export type UserRole = 'super_admin' | 'admin' | 'rm' | 'arm' | 'investor';
+export type UserRole = 'super_admin' | 'admin' | 'rm' | 'arm' | 'investor' | 'pmo' | 'pm';
 export type UserPermission =
   | 'approvals'
   | 'generate_reports'

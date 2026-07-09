@@ -23,6 +23,7 @@ import {
   listDomains,
   listAssignableAdmins, 
   listAssignableSupers,
+  listAssignablePmos,
   listHigherManagement,
   type Member,
 } from '@/lib/users/queries';
@@ -30,6 +31,7 @@ import {
   ALL_PERMISSIONS,
   ADMIN_ASSIGNABLE_ROLES,
   SUPER_ADMIN_ASSIGNABLE_ROLES,
+  PMO_ASSIGNABLE_ROLES,
   ROLE_LABELS,
   PERMISSION_LABELS,
   ROLE_DEFAULT_PERMISSIONS,
@@ -57,6 +59,8 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
   const assignableRoles = (
     user?.role === 'super_admin'
       ? SUPER_ADMIN_ASSIGNABLE_ROLES
+      : user?.role === 'pmo'
+      ? PMO_ASSIGNABLE_ROLES
       : ADMIN_ASSIGNABLE_ROLES
   ) as UserRole[];
 
@@ -69,6 +73,7 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
   );
   const [adminId, setAdminId] = useState<string | null>(member?.adminId ?? null);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [pmDepartmentIds, setPmDepartmentIds] = useState<string[]>(member?.pmDepartmentIds ?? []);
   const [useNewDept, setUseNewDept] = useState(false);
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptNameAr, setNewDeptNameAr] = useState('');
@@ -90,6 +95,10 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
   const admins = adminsQ.data ?? []; 
   const supersQ = useQuery({ queryKey: ['assignable-supers'], queryFn: listAssignableSupers });
   const supers = supersQ.data ?? [];
+  const pmosQ = useQuery({ queryKey: ['assignable-pmos'], queryFn: listAssignablePmos });
+  const pmos = pmosQ.data ?? [];
+  const togglePmDept = (id: string) =>
+    setPmDepartmentIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const higherMgmtQ = useQuery({ queryKey: ['higher-management'], queryFn: listHigherManagement });
   const higherMgmt = higherMgmtQ.data ?? [];
   const departmentsQ = useQuery({
@@ -131,6 +140,7 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
     departmentId: useNewDept ? null : departmentId,
     newDepartmentName: useNewDept ? newDeptName.trim() : undefined,
     newDepartmentNameAr: useNewDept ? newDeptNameAr.trim() : undefined,
+    pmDepartmentIds: role === 'pm' ? pmDepartmentIds : undefined,
   });
 
   const save = useMutation({
@@ -141,7 +151,7 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
       if (!isEdit && !email.trim()) {
         throw new Error(ar ? 'البريد مطلوب' : 'Email is required');
       }
-      if ((role === 'admin' || (role === 'super_admin' && !isEditingHM)) && !adminId) {
+      if ((role === 'admin' || role === 'pmo' || role === 'pm' || (role === 'super_admin' && !isEditingHM)) && !adminId) {
         throw new Error(ar ? 'يجب اختيار جهة يتبع لها' : 'A reports-to is required');
       }
       if (!isEdit && role === 'admin') {
@@ -363,7 +373,7 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
           {/* Reports to */}
           <div>
             <label className="text-xs text-slate-700">
-              {role === 'super_admin' ? (ar ? 'يتبع لـ (الإدارة العليا) *' : 'Reports to (Higher Management) *') : role === 'admin' ? (ar ? 'يتبع لـ (مدير عام) *' : 'Reports to (super-admin) *') : (ar ? 'يتبع لـ (مدير)' : 'Reports to (admin)')}
+              {role === 'super_admin' ? (ar ? 'يتبع لـ (الإدارة العليا) *' : 'Reports to (Higher Management) *') : role === 'pmo' ? (ar ? 'يتبع لـ (مدير عام) *' : 'Reports to (super-admin) *') : role === 'pm' ? (ar ? 'يتبع لـ (مسؤول إدارة المشاريع) *' : 'Reports to (PMO) *') : role === 'admin' ? (ar ? 'يتبع لـ (مدير عام) *' : 'Reports to (super-admin) *') : (ar ? 'يتبع لـ (مدير)' : 'Reports to (admin)')}
             </label>
             <select
               value={adminId ?? ''}
@@ -372,7 +382,7 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
               className={FIELD_CLS}
             >
               <option value="">{ar ? '— لا أحد —' : '— None —'}</option>
-              {(role === 'super_admin' ? higherMgmt : role === 'admin' ? supers : admins).map((a) => (
+              {(role === 'super_admin' ? higherMgmt : role === 'pmo' ? supers : role === 'pm' ? pmos : role === 'admin' ? supers : admins).map((a) => (
                 <option key={a.id} value={a.id}>
                   {ar ? a.nameAr || a.name : a.name}
                 </option>
@@ -440,6 +450,34 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
                   ? '＋ قسم جديد'
                   : '＋ New department'}
               </button>
+            </div>
+          )}
+
+          {/* PM department assignments (governance) */}
+          {role === 'pm' && (
+            <div>
+              <label className="text-xs text-slate-700">{ar ? 'الإدارات المُسندة (مدير المشروع)' : 'Assigned departments (PM)'}</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {departments.map((d) => {
+                  const on = pmDepartmentIds.includes(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      disabled={save.isPending}
+                      onClick={() => togglePmDept(d.id)}
+                      className={
+                        'rounded-full px-3 py-1 text-xs border transition-colors ' +
+                        (on
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50')
+                      }
+                    >
+                      {ar ? d.nameAr || d.name : d.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

@@ -26,6 +26,7 @@ import {
   ALL_PERMISSIONS,
   ADMIN_ASSIGNABLE_ROLES,
   SUPER_ADMIN_ASSIGNABLE_ROLES,
+  PMO_ASSIGNABLE_ROLES,
 } from '@/lib/users/constants';
 import type { UserRole, UserPermission } from '@/types';
 
@@ -42,6 +43,10 @@ type CreateBody = {
   domainIds?: string[];
   avatar?: string | null;
   isActive?: boolean;
+  departmentId?: string | null;
+  newDepartmentName?: string;
+  newDepartmentNameAr?: string;
+  pmDepartmentIds?: string[];
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -70,7 +75,7 @@ export async function POST(req: NextRequest) {
   }
 
   const callerRole = caller.role as UserRole;
-  if (callerRole !== 'super_admin' && callerRole !== 'admin') {
+  if (callerRole !== 'super_admin' && callerRole !== 'admin' && callerRole !== 'pmo') {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
@@ -97,14 +102,19 @@ export async function POST(req: NextRequest) {
   // 3. Authorize the target role
   const assignable = (callerRole === 'super_admin'
     ? SUPER_ADMIN_ASSIGNABLE_ROLES
+    : callerRole === 'pmo'
+    ? PMO_ASSIGNABLE_ROLES
     : ADMIN_ASSIGNABLE_ROLES) as readonly UserRole[];
   if (!assignable.includes(role)) {
     return NextResponse.json({ error: 'role_not_allowed' }, { status: 403 });
   }
 
-  // admin -> member always reports to the admin; super_admin -> as provided.
+  // admin -> member reports to the admin; pmo creating a pm -> reports to the pmo;
+  // super_admin -> as provided.
   const finalAdminId =
-    callerRole === 'admin' ? caller.id : (body.adminId ?? null);
+    callerRole === 'admin' ? caller.id
+    : callerRole === 'pmo' ? caller.id
+    : (body.adminId ?? null);
 
   // super_admin role is fully privileged + locked; everyone else uses the
   // provided toggles (filtered to valid enum values).
@@ -215,6 +225,27 @@ export async function POST(req: NextRequest) {
       await admin.auth.admin.deleteUser(newUserId);
       return NextResponse.json(
         { error: 'domain_insert_failed', message: domErr.message },
+        { status: 400 }
+      );
+    }
+  }
+
+  // 7b. PM department assignments (governance) — write via service role.
+  if (role === 'pm' && Array.isArray(body.pmDepartmentIds) && body.pmDepartmentIds.length > 0) {
+    const { error: pmErr } = await admin.from('pm_department_assignments').insert(
+      body.pmDepartmentIds.map((department_id) => ({
+        pm_id: newUserId,
+        department_id,
+        organization_id: caller.organization_id,
+        assigned_by_id: caller.id,
+      }))
+    );
+    if (pmErr) {
+      console.error('[users/create] pm assignment insert failed, rolling back:', pmErr);
+      await admin.from('users').delete().eq('id', newUserId);
+      await admin.auth.admin.deleteUser(newUserId);
+      return NextResponse.json(
+        { error: 'pm_assignment_failed', message: pmErr.message },
         { status: 400 }
       );
     }

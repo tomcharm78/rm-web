@@ -15,7 +15,7 @@ export async function getMyOrgContext(): Promise<{
 
   const { data: me } = await supabase
     .from('users')
-    .select('admin_id, organization_id, departments(name, name_ar)')
+    .select('admin_id, organization_id, departments!users_department_id_fkey(name, name_ar)')
     .eq('id', meId)
     .single();
 

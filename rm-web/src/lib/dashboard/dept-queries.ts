@@ -140,7 +140,7 @@ export async function getOrgLeaderboard(yearMonth: string = currentYearMonth()):
   // all staff across org (not investor/stakeholder)
   const { data: allUsers } = await supabase
     .from('users')
-    .select('id, name, name_ar, department_id, departments(name, name_ar)')
+    .select('id, name, name_ar, department_id, departments!users_department_id_fkey(name, name_ar)')
     .is('deleted_at', null)
     .not('role', 'in', '(investor,stakeholder,super_admin)')
     .eq('is_higher_management', false);

@@ -138,7 +138,7 @@ export default function DashboardHomePage() {
         {(user.role === 'admin' || user.role === 'super_admin') && (
           <TeamLeaveGantt role={user.role} />
         )}
-        {(user.role === 'admin' || user.role === 'super_admin') && (
+        {(user.role === 'admin' || user.role === 'super_admin' || user.role === 'pmo' || user.role === 'pm') && (
   <AlignmentIndexes role={user.role} userId={user.id} />
 )}
       </div>

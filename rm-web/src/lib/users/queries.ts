@@ -63,6 +63,24 @@ export async function listDomains(): Promise<DomainOption[]> {
     .map((d) => ({ id: d.id, slug: d.slug, name: d.name, nameAr: d.name_ar, icon: d.icon }));
 }
 
+// Admins available as the reporting anchor for an rm/arm.
+export async function listAssignableAdmins(): Promise<AdminOption[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name, name_ar')
+    .eq('role', 'admin')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('name');
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((u) => ({
+    id: u.id as string,
+    name: u.name as string,
+    nameAr: (u.name_ar as string) ?? '',
+  }));
+}
+
 // Admins a member can report to (admin_id picker).
 export async function listAssignableSupers(): Promise<AdminOption[]> {
   const supabase = createClient();
@@ -160,4 +178,66 @@ export async function restoreMember(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from('users').update({ deleted_at: null }).eq('id', id);
   if (error) throw new Error(error.message);
+}
+// ---------------------------------------------------------------- GOVERNANCE
+// PMOs available as the reporting anchor for a PM (mirrors listAssignableSupers).
+export async function listAssignablePmos(): Promise<AdminOption[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, name, name_ar')
+    .eq('role', 'pmo')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('name');
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((u) => ({
+    id: u.id as string,
+    name: u.name as string,
+    nameAr: (u.name_ar as string) ?? '',
+  }));
+}
+// Replace a PM's department assignments (delete-all + insert-set), mirroring
+// setUserDomains. Writes pm_department_assignments; RLS (pm_dept_assignments_write)
+// permits a pmo for their own PMs, or super_admin.
+export async function setPmDepartments(
+  pmId: string,
+  departmentIds: string[],
+  organizationId: string,
+  assignedById: string,
+): Promise<void> {
+  const supabase = createClient();
+  const { error: delErr } = await supabase
+    .from('pm_department_assignments')
+    .delete()
+    .eq('pm_id', pmId);
+  if (delErr) { console.error('[setPmDepartments] delete:', delErr); throw new Error(delErr.message); }
+  if (departmentIds.length > 0) {
+    const rows = departmentIds.map((department_id) => ({
+      pm_id: pmId,
+      department_id,
+      organization_id: organizationId,
+      assigned_by_id: assignedById,
+    }));
+    const { error: insErr } = await supabase.from('pm_department_assignments').insert(rows);
+    if (insErr) { console.error('[setPmDepartments] insert:', insErr); throw new Error(insErr.message); }
+  }
+}
+
+// The current PM's own department assignments (RLS: pm sees own rows).
+export async function listMyPmDepartments(): Promise<{ id: string; name: string; nameAr: string }[]> {
+  const supabase = createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return [];
+  const { data, error } = await supabase
+    .from('pm_department_assignments')
+    .select('department_id, departments(name, name_ar)')
+    .eq('pm_id', auth.user.id);
+  if (error) { console.error('[listMyPmDepartments]', error.message); return []; }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => ({
+    id: r.department_id as string,
+    name: r.departments?.name ?? '',
+    nameAr: r.departments?.name_ar ?? '',
+  }));
 }

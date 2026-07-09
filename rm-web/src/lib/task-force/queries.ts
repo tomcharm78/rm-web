@@ -112,7 +112,7 @@ export async function listOtherDeptAdmins(): Promise<{ id: string; name: string;
   const myDept = (meRow as { department_id: string | null } | null)?.department_id ?? null;
   let q = supabase
     .from('users')
-    .select('id, name, name_ar, department_id, departments(name)')
+    .select('id, name, name_ar, department_id, departments!users_department_id_fkey(name)')
     .eq('role', 'admin').eq('is_active', true).is('deleted_at', null).neq('id', me);
   if (myDept) q = q.neq('department_id', myDept);
   const { data, error } = await q.order('name');

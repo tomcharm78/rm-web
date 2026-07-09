@@ -36,13 +36,14 @@ export default function KpiPage() {
 
   const isSuper = user?.role === 'super_admin';
   const isAdmin = user?.role === 'admin';
+  const isGov = user?.role === 'pmo' || user?.role === 'pm';
 
   const [modal, setModal] = useState<null | { kind: 'strategic'; tier: 'organization' | 'deputyship'; editing?: StrategicGoal } | { kind: 'department'; editing?: DepartmentGoal }>(null);
 
   const orgGoalsQ = useQuery({ queryKey: ['strategic-goals', 'organization', year], queryFn: () => listStrategicGoals('organization'), enabled: isSuper });
   const depGoalsQ = useQuery({ queryKey: ['strategic-goals', 'deputyship', year], queryFn: () => listStrategicGoals('deputyship') });
   const myDeptQ = useQuery({ queryKey: ['my-dept-id'], queryFn: getMyDepartmentId, enabled: isAdmin });
-  const allDeptsQ = useQuery({ queryKey: ['all-depts'], queryFn: listAllDepartments, enabled: isSuper });
+  const allDeptsQ = useQuery({ queryKey: ['all-depts'], queryFn: listAllDepartments, enabled: isSuper || isGov });
 
   const deptId = isAdmin ? (myDeptQ.data ?? null) : null;
   const deptGoalsQ = useQuery({
@@ -142,9 +143,9 @@ export default function KpiPage() {
         </Section>
       )}
 
-      <AlignmentView scopeDeptId={isSuper ? null : deptId} deptNameById={deptNameById} ar={ar} />
+      <AlignmentView scopeDeptId={isSuper || isGov ? null : deptId} deptNameById={deptNameById} ar={ar} />
 
-      <LinkageOverview scopeDeptId={isSuper ? null : deptId} deptNameById={deptNameById} ar={ar} />
+      <LinkageOverview scopeDeptId={isSuper || isGov ? null : deptId} deptNameById={deptNameById} ar={ar} />
       <GanttExportButton isSuper={isSuper} deptId={deptId} deptName={deptId ? (deptNameById.get(deptId) ?? null) : null} ar={ar} />
       {modal && (
         <GoalEditorModal year={year} onClose={() => setModal(null)}
