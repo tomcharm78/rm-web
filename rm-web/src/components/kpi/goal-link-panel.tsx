@@ -28,6 +28,8 @@ export function GoalLinkPanel({
   const qc = useQueryClient();
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isGov = user?.role === 'pmo' || user?.role === 'pm';
+  const canLink = isAdmin || isGov;
 
   // module gate
   const modulesCtl = useQuery({ queryKey: ['my-modules-control'], queryFn: getMyModulesControl });
@@ -37,14 +39,14 @@ export function GoalLinkPanel({
   const goalsQ = useQuery({
     queryKey: ['my-exec-goals'],
     queryFn: listMyDepartmentExecutiveGoals,
-    enabled: isAdmin && kpisOn,
+    enabled: canLink && kpisOn,
   });
 
   // currently linked goal ids
   const linkedQ = useQuery({
     queryKey: ['entity-goals', entityType, entityId],
     queryFn: () => entityType === 'task' ? listTaskGoals(entityId) : listChallengeGoals(entityId),
-    enabled: isAdmin && kpisOn,
+    enabled: canLink && kpisOn,
   });
 
   const [selected, setSelected] = useState<string[]>([]);
@@ -56,7 +58,7 @@ export function GoalLinkPanel({
     if (linkedQ.data) { setSelected(linkedQ.data); setDirty(false); }
   }, [linkedQ.data]);
 
-  if (!isAdmin || !kpisOn) return null;
+  if (!canLink || !kpisOn) return null;
 
   const goals = goalsQ.data ?? [];
 
@@ -72,6 +74,8 @@ export function GoalLinkPanel({
       if (entityType === 'task') await setTaskGoals(entityId, selected);
       else await setChallengeGoals(entityId, selected);
       qc.invalidateQueries({ queryKey: ['entity-goals', entityType, entityId] });
+      // Governance "Linked by PM" writes a status-history row — refresh the timeline.
+      qc.invalidateQueries({ queryKey: [entityType === 'task' ? 'task-history' : 'challenge-history', entityId] });
       setDirty(false);
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1800);
@@ -122,7 +126,7 @@ export function GoalLinkPanel({
             <button onClick={save} disabled={saving}
               className="mt-3 text-sm rounded-md px-4 py-2 text-white"
               style={{ background: EXEC }}>
-              {saving ? (ar ? 'جارٍ الحفظ…' : 'Saving…') : (ar ? 'حفظ الروابط' : 'Save links')}
+              {saving ? (ar ? 'جارٍ الحفظ…' : 'Saving…') : isGov ? (ar ? 'ربط بواسطة مدير المشروع' : 'Link by PM') : (ar ? 'حفظ الروابط' : 'Save links')}
             </button>
           )}
           {savedFlash && <span className="ms-3 text-xs" style={{ color: EXEC }}>{ar ? 'تم الحفظ ✓' : 'Saved ✓'}</span>}

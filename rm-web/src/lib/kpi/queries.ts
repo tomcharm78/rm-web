@@ -160,12 +160,40 @@ export async function listTaskGoals(taskId: string): Promise<string[]> {
 export async function setTaskGoals(taskId: string, goalIds: string[]): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  // Stamp the capacity this link was made in (role at link time).
+  let linkedByRole: string | null = null;
+  if (user) {
+    const { data: me } = await supabase.from('users').select('role').eq('id', user.id).single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    linkedByRole = (me as any)?.role ?? null;
+  }
+  const isGov = linkedByRole === 'pmo' || linkedByRole === 'pm';
+  // Capture the pre-change state so a governance edit can be logged to history.
+  let priorIds: string[] = [];
+  if (isGov) {
+    const { data: prior } = await supabase.from('task_goals').select('department_goal_id').eq('task_id', taskId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    priorIds = (prior ?? []).map((r: any) => r.department_goal_id as string);
+  }
   const { error: delErr } = await supabase.from('task_goals').delete().eq('task_id', taskId);
   if (delErr) { console.error('[setTaskGoals delete]', delErr); throw new Error(delErr.message); }
-  if (goalIds.length === 0) return;
-  const rows = goalIds.map((department_goal_id) => ({ task_id: taskId, department_goal_id, linked_by_id: user?.id ?? null }));
-  const { error: insErr } = await supabase.from('task_goals').insert(rows);
-  if (insErr) { console.error('[setTaskGoals insert]', insErr); throw new Error(insErr.message); }
+  if (goalIds.length > 0) {
+    const rows = goalIds.map((department_goal_id) => ({ task_id: taskId, department_goal_id, linked_by_id: user?.id ?? null, linked_by_role: linkedByRole }));
+    const { error: insErr } = await supabase.from('task_goals').insert(rows);
+    if (insErr) { console.error('[setTaskGoals insert]', insErr); throw new Error(insErr.message); }
+  }
+  // Governance link change -> record "Linked by PM" in task status history.
+  if (isGov && JSON.stringify(priorIds.sort()) !== JSON.stringify([...goalIds].sort())) {
+    const { data: cur } = await supabase.from('tasks').select('status').eq('id', taskId).single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const st = (cur as any)?.status ?? null;
+    if (st) {
+      await supabase.from('task_status_history').insert({
+        task_id: taskId, from_status: st, to_status: st,
+        changed_by_id: user?.id ?? null, change_reason: 'Linked by PM',
+      });
+    }
+  }
 }
 
 // ---- challenge ↔ executive goal links ----
@@ -181,12 +209,37 @@ export async function listChallengeGoals(challengeId: string): Promise<string[]>
 export async function setChallengeGoals(challengeId: string, goalIds: string[]): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  let linkedByRole: string | null = null;
+  if (user) {
+    const { data: me } = await supabase.from('users').select('role').eq('id', user.id).single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    linkedByRole = (me as any)?.role ?? null;
+  }
+  const isGov = linkedByRole === 'pmo' || linkedByRole === 'pm';
+  let priorIds: string[] = [];
+  if (isGov) {
+    const { data: prior } = await supabase.from('challenge_goals').select('department_goal_id').eq('challenge_id', challengeId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    priorIds = (prior ?? []).map((r: any) => r.department_goal_id as string);
+  }
   const { error: delErr } = await supabase.from('challenge_goals').delete().eq('challenge_id', challengeId);
   if (delErr) { console.error('[setChallengeGoals delete]', delErr); throw new Error(delErr.message); }
-  if (goalIds.length === 0) return;
-  const rows = goalIds.map((department_goal_id) => ({ challenge_id: challengeId, department_goal_id, linked_by_id: user?.id ?? null }));
-  const { error: insErr } = await supabase.from('challenge_goals').insert(rows);
-  if (insErr) { console.error('[setChallengeGoals insert]', insErr); throw new Error(insErr.message); }
+  if (goalIds.length > 0) {
+    const rows = goalIds.map((department_goal_id) => ({ challenge_id: challengeId, department_goal_id, linked_by_id: user?.id ?? null, linked_by_role: linkedByRole }));
+    const { error: insErr } = await supabase.from('challenge_goals').insert(rows);
+    if (insErr) { console.error('[setChallengeGoals insert]', insErr); throw new Error(insErr.message); }
+  }
+  if (isGov && JSON.stringify(priorIds.sort()) !== JSON.stringify([...goalIds].sort())) {
+    const { data: cur } = await supabase.from('challenges').select('status').eq('id', challengeId).single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const st = (cur as any)?.status ?? null;
+    if (st) {
+      await supabase.from('challenge_status_history').insert({
+        challenge_id: challengeId, from_status: st, to_status: st,
+        changed_by_id: user?.id ?? null, reason: 'Linked by PM',
+      });
+    }
+  }
 }
 
 // list the admin's own department executive goals (for the linking picker)
@@ -194,11 +247,28 @@ export async function listMyDepartmentExecutiveGoals(): Promise<{ id: string; ti
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
-  const { data: me } = await supabase.from('users').select('department_id').eq('id', user.id).maybeSingle();
+  const { data: me } = await supabase.from('users').select('role, department_id').eq('id', user.id).maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const role = (me as any)?.role;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const deptId = (me as any)?.department_id;
-  if (!deptId) return [];
-  const { data } = await supabase.from('department_goals').select('id, title, title_ar').eq('department_id', deptId).eq('status', 'active').order('created_at');
+
+  // Governance goal picker: PMO sees ALL departments' goals; PM sees goals for
+  // their assigned departments. RLS still guards the underlying reads.
+  let goalsQuery = supabase.from('department_goals').select('id, title, title_ar').eq('status', 'active');
+  if (role === 'pmo') {
+    // org-wide: no department filter
+  } else if (role === 'pm') {
+    const { data: asgn } = await supabase.from('pm_department_assignments').select('department_id').eq('pm_id', user.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deptIds = (asgn ?? []).map((a: any) => a.department_id as string);
+    if (deptIds.length === 0) return [];
+    goalsQuery = goalsQuery.in('department_id', deptIds);
+  } else {
+    if (!deptId) return [];
+    goalsQuery = goalsQuery.eq('department_id', deptId);
+  }
+  const { data } = await goalsQuery.order('created_at');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((g: any) => ({ id: g.id, title: g.title, titleAr: g.title_ar ?? '' }));
 }
