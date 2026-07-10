@@ -132,7 +132,7 @@ export default function DashboardHomePage() {
         )}
         <VacationCountdown />
         <PersonalPerformance userId={user.id} userName={user.name} />
-        {(user.role === 'admin' || user.role === 'super_admin') && (
+        {(user.role === 'admin' || user.role === 'super_admin' || user.role === 'pmo' || user.role === 'pm') && (
           <DeptPerformanceView role={user.role} userId={user.id} />
         )}
         {(user.role === 'admin' || user.role === 'super_admin') && (

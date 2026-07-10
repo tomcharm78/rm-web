@@ -10,6 +10,7 @@ import {
   getDepartmentPerformance, getOrgWidePerformance, getOrgLeaderboard, listAllDepartments,
   getMyDepartmentId, getDeptTrend, getOrgDeptComparison, type MemberScore, type LeaderboardEntry,
 } from '@/lib/dashboard/dept-queries';
+import { listMyPmDepartments } from '@/lib/users/queries';
 import { tierLabel, tierColor, type PerfTier } from '@/lib/dashboard/scoring';
 import { currentYearMonth, recentYearMonths } from '@/lib/dashboard/perf-queries';
 
@@ -346,18 +347,24 @@ export function DeptPerformanceView({ role, userId }: { role: string; userId: st
   const { language } = useLanguage();
   const ar = language === 'ar';
   const ym = currentYearMonth();
-  const isSuper = role === 'super_admin';
+  const isSuper = role === 'super_admin' || role === 'pmo';
   const isAdmin = role === 'admin';
+  const isPm = role === 'pm';
 
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(isSuper ? 'overall' : null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showTable, setShowTable] = useState(false);
-
   const myDeptQ = useQuery({ queryKey: ['my-dept-id'], queryFn: getMyDepartmentId, enabled: isAdmin });
   const allDeptsQ = useQuery({ queryKey: ['all-depts'], queryFn: listAllDepartments, enabled: isSuper });
+  const pmDeptsQ = useQuery({ queryKey: ['my-pm-departments'], queryFn: listMyPmDepartments, enabled: isPm });
+  const pmDepts = pmDeptsQ.data ?? [];
   const leaderQ = useQuery({ queryKey: ['org-leaderboard', ym], queryFn: () => getOrgLeaderboard(ym), enabled: isSuper });
-
-  const deptId = isSuper ? selectedDeptId : (myDeptQ.data ?? null);
+  // PM: default to their first assigned department; selector limited to assignments.
+  const deptId = isSuper
+    ? selectedDeptId
+    : isPm
+    ? (selectedDeptId ?? pmDepts[0]?.id ?? null)
+    : (myDeptQ.data ?? null);
   const isOverall = deptId === 'overall';
 
   const trendMonths = recentYearMonths(6).reverse();
@@ -381,6 +388,14 @@ export function DeptPerformanceView({ role, userId }: { role: string; userId: st
 
   return (
     <div style={{ marginTop: 24 }}>
+      {isPm && pmDepts.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <select value={selectedDeptId ?? pmDepts[0]?.id ?? ''} onChange={(e) => { setSelectedDeptId(e.target.value || null); setSelectedUserId(null); setShowTable(false); }}
+            style={{ borderRadius: 8, border: '0.5px solid var(--border)', padding: '6px 10px', fontSize: 13, background: 'var(--surface-1)' }}>
+            {pmDepts.map((d) => <option key={d.id} value={d.id}>{ar ? d.nameAr || d.name : d.name}</option>)}
+          </select>
+        </div>
+      )}
       {isSuper && (
         <>
           {leaderQ.data?.employeeOfMonth && <EmployeeOfMonth entry={leaderQ.data.employeeOfMonth} ar={ar} />}
