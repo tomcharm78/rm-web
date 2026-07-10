@@ -86,6 +86,8 @@ export default function ApprovalsPage() {
   const router = useRouter();
 
   const isApprover = user?.role === 'admin' || user?.role === 'super_admin';
+  const isGov = user?.role === 'pmo' || user?.role === 'pm';
+  const canViewHub = isApprover || isGov; // governance sees the queue read-only
 
   const [tab, setTab] = useState<Tab>('pending');
   const [showNew, setShowNew] = useState(false);
@@ -101,7 +103,7 @@ export default function ApprovalsPage() {
   const hubQ = useQuery({
     queryKey: ['approvals-hub', tab],
     queryFn: () => getUnifiedApprovals(tab as ApprovalHubStatus),
-    enabled: tab !== 'mine' && isApprover,
+    enabled: tab !== 'mine' && canViewHub,
     refetchInterval: tab === 'pending' ? 10_000 : false,
   });
 
@@ -117,7 +119,7 @@ export default function ApprovalsPage() {
   const loading = tab === 'mine' ? mineQ.isLoading : hubQ.isLoading;
 
   // departments for the filter dropdown
-  const deptsQ = useQuery({ queryKey: ['departments-options'], queryFn: listDepartments, enabled: isApprover });
+  const deptsQ = useQuery({ queryKey: ['departments-options'], queryFn: listDepartments, enabled: canViewHub });
   const depts: DepartmentOption[] = deptsQ.data ?? [];
 
   // years present in the data (for the year dropdown)
@@ -180,7 +182,7 @@ export default function ApprovalsPage() {
   if (!user) return null;
 
   const tabs: { key: Tab; labelEn: string; labelAr: string }[] = [
-    ...(isApprover
+    ...(canViewHub
       ? ([
           { key: 'pending', labelEn: 'Pending', labelAr: 'قيد الانتظار' },
           { key: 'approved', labelEn: 'Approved', labelAr: 'تمت الموافقة' },
@@ -191,7 +193,7 @@ export default function ApprovalsPage() {
   ];
 
   // Non-approvers land on My requests.
-  const activeTab: Tab = !isApprover ? 'mine' : tab;
+  const activeTab: Tab = !canViewHub ? 'mine' : tab;
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '1.5rem 1rem' }}>
@@ -206,7 +208,7 @@ export default function ApprovalsPage() {
         </button>
       </div>
       <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', marginBottom: 20 }}>
-        {isApprover
+        {canViewHub
           ? (ar ? 'جميع الموافقات المعلقة في مكان واحد — إغلاق المهام، النقل، الإجازات، والخطابات' : 'All pending approvals in one place — task closures, transfers, leave, and letters')
           : (ar ? 'طلبات الموافقة على الخطابات والمقترحات' : 'Approval requests for letters & proposals')}
       </p>
@@ -282,7 +284,7 @@ export default function ApprovalsPage() {
           {filteredHub.map((r) => (
             <UnifiedCard
               key={r.key} r={r} ar={ar}
-              canDecide={r.status === 'pending'}
+              canDecide={isApprover && r.status === 'pending'}
               attachmentCount={r.kind === 'letter' ? (hubCounts[r.sourceId] ?? 0) : 0}
               expanded={expanded === r.key}
               onToggle={() => setExpanded(expanded === r.key ? null : r.key)}
