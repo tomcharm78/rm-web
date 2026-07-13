@@ -6,6 +6,9 @@
 // file. RLS scopes the data automatically — no role logic needed here.
 import { useEffect, useRef, useState } from 'react';
 import { exportAlignmentExcel, exportWeeklyExcel } from '@/lib/reports/excel-export';
+import { EmployeePerfReport, type EmployeePerfData } from '@/components/reports/employee-perf-report';
+import { getMonthlyPerformance, getYearlyPerformance } from '@/lib/dashboard/perf-queries';
+import { getDepartmentPerformance, getOrgWidePerformance } from '@/lib/dashboard/dept-queries';
 import { getScorecards } from '@/lib/reports/scorecard-queries';
 import { exportScorecardsPptx } from '@/lib/reports/scorecard-pptx';
 import { useQuery } from '@tanstack/react-query';
@@ -26,7 +29,7 @@ import { WeeklyReport, type WeeklyData } from '@/components/reports/weekly-repor
 import { DEFAULT_SETTINGS, type ReportSettings } from '@/components/reports/paginated-report';
 
 const YEAR = new Date().getFullYear();
-type ReportId = 'alignment' | 'weekly' | 'scorecards';
+type ReportId = 'alignment' | 'weekly' | 'scorecards' | 'employees';
 const LS_KEY = (lang: string) => `rm-report-settings-${lang}`;
 
 export default function ReportsPage() {
@@ -47,6 +50,7 @@ export default function ReportsPage() {
   const ar = reportLang === 'ar';
   const isWeekly = reportId === 'weekly';
   const isScorecards = reportId === 'scorecards';
+  const isEmployees = reportId === 'employees';
 
   // Header/footer settings persist per report language.
   useEffect(() => {
@@ -97,8 +101,50 @@ export default function ReportsPage() {
   });
   const attentionQ = useQuery({ queryKey: ['weekly-attention'], queryFn: getWeeklyAttention, enabled: isWeekly });
   const approvalsQ = useQuery({ queryKey: ['weekly-approvals'], queryFn: getApprovalBottlenecks, enabled: isWeekly });
+  const empQ = useQuery({
+    queryKey: ['report-employees', scopeDeptId || 'all', YEAR, ar],
+    enabled: isEmployees,
+    queryFn: async (): Promise<EmployeePerfData> => {
+      const now = new Date();
+      const lastMonth = now.getUTCMonth() + 1;
+      const months: string[] = [];
+      for (let m = 1; m <= lastMonth; m++) months.push(`${YEAR}-${String(m).padStart(2, '0')}`);
 
-  const loading = isScorecards ? false : isWeekly
+      const perf = scopeDeptId
+        ? await getDepartmentPerformance(scopeDeptId, months[0])
+        : await getOrgWidePerformance(months[0]);
+      const members = perf.members ?? [];
+
+      const rows = await Promise.all(members.map(async (m) => {
+        const monthly = await Promise.all(months.map((ym) => getMonthlyPerformance(m.userId, ym)));
+        const yearly = await getYearlyPerformance(m.userId, YEAR);
+        return {
+          userId: m.userId,
+          name: m.name,
+          nameAr: m.nameAr,
+          cells: monthly.map((r) => ({ composite: r.composite, tier: r.tier as string })),
+          yearly: yearly.composite,
+          yearlyTier: yearly.tier as string,
+        };
+      }));
+
+      return {
+        months,
+        monthLabels: months.map((ym) => {
+          const [y, mm] = ym.split('-').map(Number);
+          return new Date(Date.UTC(y, mm - 1, 1)).toLocaleDateString(ar ? 'ar' : 'en', { month: 'short' });
+        }),
+        rows,
+        orgName: orgQ.data?.orgName ?? '',
+        orgNameAr: orgQ.data?.orgNameAr ?? '',
+        year: YEAR,
+        scopeLabel: scopeDeptId
+          ? ((deptsQ.data ?? []).find((d) => d.id === scopeDeptId)?.[ar ? 'nameAr' : 'name'] ?? '')
+          : (ar ? 'جميع الإدارات' : 'All departments'),
+      };
+    },
+  });
+  const loading = isScorecards ? false : isEmployees ? empQ.isLoading : isWeekly
     ? movementQ.isLoading || capacityQ.isLoading || attentionQ.isLoading || approvalsQ.isLoading || burdenQ.isLoading
     : overallQ.isLoading || perDeptQ.isLoading || burdenQ.isLoading || challengesQ.isLoading;
 
@@ -144,7 +190,8 @@ export default function ReportsPage() {
       const pageEls = Array.from(wrapRef.current.querySelectorAll<HTMLElement>('.report-page'));
       if (!pageEls.length) throw new Error('no pages to export');
 
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const landscape = pageEls[0]?.dataset.landscape === '1';
+      const pdf = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
       const pw = pdf.internal.pageSize.getWidth();
       const ph = pdf.internal.pageSize.getHeight();
 
@@ -230,6 +277,7 @@ export default function ReportsPage() {
             <option value="alignment">{uiAr ? 'محاذاة الإدارات والنشاط' : 'Department Alignment & Activity'}</option>
             <option value="weekly">{uiAr ? 'التقرير الأسبوعي' : 'Weekly Report'}</option>
             <option value="scorecards">{uiAr ? 'بطاقات المؤشرات (PPTX)' : 'KPI Scorecards (PPTX)'}</option>
+            <option value="employees">{uiAr ? 'أداء الموظفين' : 'Employee Performance'}</option>
           </select>
         </div>
 
@@ -334,6 +382,8 @@ export default function ReportsPage() {
                     ? 'بطاقات المؤشرات تُصدَّر مباشرة كملف PowerPoint — بطاقة لكل مؤشر ضمن النطاق المحدد. اضغط تصدير.'
                     : 'KPI Scorecards export directly as a PowerPoint file — one card per KPI in the selected scope. Click export.'}
                 </div>
+              ) : isEmployees ? (
+                empQ.data && <EmployeePerfReport data={empQ.data} ar={ar} settings={settings} />
               ) : isWeekly
                 ? (weeklyData && <WeeklyReport data={weeklyData} ar={ar} settings={settings} />)
                 : <DeptAlignmentReport data={alignmentData} ar={ar} settings={settings} />}

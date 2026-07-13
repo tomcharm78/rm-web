@@ -14,14 +14,13 @@
 // The exporter captures each .report-page element separately → one PDF page each.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-export const PAGE_W = 794;   // A4 @96dpi
-export const PAGE_H = 1123;
+// A4 at 96dpi. Landscape swaps the axes — a 12-month matrix needs the width.
+export const A4_PORTRAIT = { w: 794, h: 1123 };
+export const A4_LANDSCAPE = { w: 1123, h: 794 };
 const PAD = 40;
 const HEADER_H = 74;
 const FOOTER_H = 52;
 const SAFETY = 12;
-export const CONTENT_H = PAGE_H - PAD * 2 - HEADER_H - FOOTER_H - SAFETY;
-
 const MIN_ORPHAN_ROWS = 5;
 const CHART_FULL_H = 250;
 const CHART_MIN_H = 170;
@@ -58,8 +57,7 @@ export type Block =
 type TableMetrics = { headH: number; rowH: number };
 
 // ---------------------------------------------------------------- packing
-function paginate(blocks: Block[], heights: number[], tm: Map<string, TableMetrics>): Block[][] {
-  const pages: Block[][] = [];
+function paginate(blocks: Block[], heights: number[], tm: Map<string, TableMetrics>, CONTENT_H: number): Block[][] {  const pages: Block[][] = [];
   let page: Block[] = [];
   let used = 0;
 
@@ -79,8 +77,11 @@ function paginate(blocks: Block[], heights: number[], tm: Map<string, TableMetri
     if (b.kind === 'h2' || b.kind === 'label') {
       const next = blocks[i + 1];
       if (next) {
+        // A table needs its header + a meaningful chunk of rows to be worth
+        // starting here; a chart needs at least its shrunk height; anything else
+        // needs to fit whole. If it can't, the heading travels with it.
         const nextMin =
-          next.kind === 'table' ? tableH(next, MIN_ORPHAN_ROWS)
+          next.kind === 'table' ? tableH(next, MIN_ORPHAN_ROWS) + 24   // + the table's own top margin
           : next.kind === 'chart' ? ((heights[i + 1] ?? CHART_FULL_H + 12) - CHART_FULL_H) + CHART_MIN_H
           : (heights[i + 1] ?? 0);
         if (h <= remaining && h + nextMin > remaining) {
@@ -159,7 +160,7 @@ export type ChartSpec = {
 };
 
 export function PaginatedReport({
-  blocks, charts, ar, settings, title, subtitle, meta,
+  blocks, charts, ar, settings, title, subtitle, meta, landscape = false,
 }: {
   blocks: Block[];
   charts: ChartSpec[];
@@ -168,7 +169,11 @@ export function PaginatedReport({
   title: string;       // fallback header if the user hasn't set one
   subtitle: string;    // fallback sub-header
   meta: string;        // scope · period line
+  landscape?: boolean;
 }) {
+  const PAGE_W = landscape ? A4_LANDSCAPE.w : A4_PORTRAIT.w;
+  const PAGE_H = landscape ? A4_LANDSCAPE.h : A4_PORTRAIT.h;
+  const CONTENT_H = PAGE_H - PAD * 2 - HEADER_H - FOOTER_H - SAFETY;
   const measureRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const [pages, setPages] = useState<Block[][] | null>(null);
@@ -195,10 +200,9 @@ export function PaginatedReport({
       });
     });
 
-    setPages(paginate(blocks, heights, tm));
+    setPages(paginate(blocks, heights, tm, CONTENT_H));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(blocks), ar, settings.headerSize, settings.subHeaderSize]);
-
+  }, [JSON.stringify(blocks), ar, settings.headerSize, settings.subHeaderSize, landscape]);
   // Charts — drawn once the real pages are mounted.
   useEffect(() => {
     if (!pages) return;
@@ -267,6 +271,7 @@ export function PaginatedReport({
           <div
             key={i}
             className="report-page"
+            data-landscape={landscape ? '1' : '0'}
             dir={ar ? 'rtl' : 'ltr'}
             style={{
               width: PAGE_W, height: PAGE_H, background: '#fff', padding: PAD,
