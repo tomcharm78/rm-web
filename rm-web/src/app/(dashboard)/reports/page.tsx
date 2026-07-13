@@ -4,6 +4,8 @@
 // No blind image slicing, so headers/footers stay intact and tables keep their
 // repeated header rows.
 import { useEffect, useRef, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Download, Loader2, Settings2 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
@@ -91,10 +93,6 @@ export default function ReportsPage() {
     if (!wrapRef.current) return;
     setExporting(true);
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
       const pageEls = Array.from(wrapRef.current.querySelectorAll<HTMLElement>('.report-page'));
       if (pageEls.length === 0) throw new Error('no pages to export');
 
