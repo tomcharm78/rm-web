@@ -6,6 +6,8 @@
 // file. RLS scopes the data automatically — no role logic needed here.
 import { useEffect, useRef, useState } from 'react';
 import { exportAlignmentExcel, exportWeeklyExcel } from '@/lib/reports/excel-export';
+import { getScorecards } from '@/lib/reports/scorecard-queries';
+import { exportScorecardsPptx } from '@/lib/reports/scorecard-pptx';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Download, Loader2, Settings2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
@@ -24,7 +26,7 @@ import { WeeklyReport, type WeeklyData } from '@/components/reports/weekly-repor
 import { DEFAULT_SETTINGS, type ReportSettings } from '@/components/reports/paginated-report';
 
 const YEAR = new Date().getFullYear();
-type ReportId = 'alignment' | 'weekly';
+type ReportId = 'alignment' | 'weekly' | 'scorecards';
 const LS_KEY = (lang: string) => `rm-report-settings-${lang}`;
 
 export default function ReportsPage() {
@@ -44,6 +46,7 @@ export default function ReportsPage() {
 
   const ar = reportLang === 'ar';
   const isWeekly = reportId === 'weekly';
+  const isScorecards = reportId === 'scorecards';
 
   // Header/footer settings persist per report language.
   useEffect(() => {
@@ -95,7 +98,7 @@ export default function ReportsPage() {
   const attentionQ = useQuery({ queryKey: ['weekly-attention'], queryFn: getWeeklyAttention, enabled: isWeekly });
   const approvalsQ = useQuery({ queryKey: ['weekly-approvals'], queryFn: getApprovalBottlenecks, enabled: isWeekly });
 
-  const loading = isWeekly
+  const loading = isScorecards ? false : isWeekly
     ? movementQ.isLoading || capacityQ.isLoading || attentionQ.isLoading || approvalsQ.isLoading || burdenQ.isLoading
     : overallQ.isLoading || perDeptQ.isLoading || burdenQ.isLoading || challengesQ.isLoading;
 
@@ -186,6 +189,22 @@ export default function ReportsPage() {
       setExporting(false);
     }
   }
+  async function exportScorecards() {
+    setExporting(true);
+    try {
+      setStatus(uiAr ? 'جارٍ إنشاء البطاقات…' : 'Building scorecards…');
+      const cards = await getScorecards(scopeDeptId || null, YEAR);
+      if (cards.length === 0) throw new Error(uiAr ? 'لا توجد مؤشرات' : 'No KPIs in scope');
+      await exportScorecardsPptx(cards, ar, scopeLabel + ' · ' + YEAR);
+      setStatus(uiAr ? 'تم التصدير ✓' : 'Exported ✓');
+      setTimeout(() => setStatus(''), 2500);
+    } catch (e) {
+      console.error('[scorecards]', e);
+      setStatus('ERROR: ' + (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (!user) return null;
 
@@ -210,6 +229,7 @@ export default function ReportsPage() {
           <select className={SELECT} value={reportId} onChange={(e) => setReportId(e.target.value as ReportId)}>
             <option value="alignment">{uiAr ? 'محاذاة الإدارات والنشاط' : 'Department Alignment & Activity'}</option>
             <option value="weekly">{uiAr ? 'التقرير الأسبوعي' : 'Weekly Report'}</option>
+            <option value="scorecards">{uiAr ? 'بطاقات المؤشرات (PPTX)' : 'KPI Scorecards (PPTX)'}</option>
           </select>
         </div>
 
@@ -252,22 +272,24 @@ export default function ReportsPage() {
 
         <div className="ms-auto flex items-center gap-3">
           {status && <span className="text-xs text-slate-500">{status}</span>}
+          {!isScorecards && (
+            <button
+              onClick={exportExcel}
+              disabled={exporting || loading}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              Excel
+            </button>
+          )}
           <button
-            onClick={exportExcel}
-            disabled={exporting || loading}
-            className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <Download className="h-4 w-4" />
-            Excel
-          </button>
-          <button
-            onClick={exportPdf}
+            onClick={isScorecards ? exportScorecards : exportPdf}
             disabled={exporting || loading}
             className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm text-white disabled:opacity-50"
             style={{ background: '#199e70' }}
           >
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {uiAr ? 'تصدير PDF' : 'Export PDF'}
+            {isScorecards ? (uiAr ? 'تصدير PPTX' : 'Export PPTX') : (uiAr ? 'تصدير PDF' : 'Export PDF')}
           </button>
         </div>
       </div>
@@ -306,7 +328,13 @@ export default function ReportsPage() {
         ) : (
           <div className="overflow-auto bg-slate-100 p-6 rounded-lg flex justify-center">
             <div ref={wrapRef}>
-              {isWeekly
+              {isScorecards ? (
+                <div className="bg-white rounded-lg border border-slate-200 p-10 text-center text-sm text-slate-500" style={{ width: 700 }}>
+                  {uiAr
+                    ? 'بطاقات المؤشرات تُصدَّر مباشرة كملف PowerPoint — بطاقة لكل مؤشر ضمن النطاق المحدد. اضغط تصدير.'
+                    : 'KPI Scorecards export directly as a PowerPoint file — one card per KPI in the selected scope. Click export.'}
+                </div>
+              ) : isWeekly
                 ? (weeklyData && <WeeklyReport data={weeklyData} ar={ar} settings={settings} />)
                 : <DeptAlignmentReport data={alignmentData} ar={ar} settings={settings} />}
             </div>

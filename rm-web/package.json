@@ -22,7 +22,6 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^1.17.0",
     "next": "^15.5.19",
-    "pptxgenjs": "^4.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.78.0",
