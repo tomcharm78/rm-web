@@ -5,6 +5,7 @@
 // handles Arabic BiDi correctly), each .report-page is captured, jsPDF writes the
 // file. RLS scopes the data automatically — no role logic needed here.
 import { useEffect, useRef, useState } from 'react';
+import { exportAlignmentExcel, exportWeeklyExcel } from '@/lib/reports/excel-export';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Download, Loader2, Settings2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
@@ -136,6 +137,7 @@ export default function ReportsPage() {
     if (!wrapRef.current) return;
     setExporting(true);
     try {
+      
       const pageEls = Array.from(wrapRef.current.querySelectorAll<HTMLElement>('.report-page'));
       if (!pageEls.length) throw new Error('no pages to export');
 
@@ -160,6 +162,25 @@ export default function ReportsPage() {
       setTimeout(() => setStatus(''), 2500);
     } catch (e) {
       console.error('[reports export]', e);
+      setStatus('ERROR: ' + (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
+  async function exportExcel() {
+    setExporting(true);
+    try {
+      setStatus(uiAr ? 'جارٍ إنشاء الملف…' : 'Building workbook…');
+      if (isWeekly) {
+        if (!weeklyData) throw new Error('no data');
+        await exportWeeklyExcel(weeklyData, ar);
+      } else {
+        await exportAlignmentExcel(alignmentData, ar);
+      }
+      setStatus(uiAr ? 'تم التصدير ✓' : 'Exported ✓');
+      setTimeout(() => setStatus(''), 2500);
+    } catch (e) {
+      console.error('[reports excel]', e);
       setStatus('ERROR: ' + (e as Error).message);
     } finally {
       setExporting(false);
@@ -231,6 +252,14 @@ export default function ReportsPage() {
 
         <div className="ms-auto flex items-center gap-3">
           {status && <span className="text-xs text-slate-500">{status}</span>}
+          <button
+            onClick={exportExcel}
+            disabled={exporting || loading}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            Excel
+          </button>
           <button
             onClick={exportPdf}
             disabled={exporting || loading}
