@@ -5,6 +5,7 @@
 // handles Arabic BiDi correctly), each .report-page is captured, jsPDF writes the
 // file. RLS scopes the data automatically — no role logic needed here.
 import { useEffect, useRef, useState } from 'react';
+import { exportAlignmentPptx, exportWeeklyPptx } from '@/lib/reports/report-pptx';
 import { exportAlignmentExcel, exportWeeklyExcel } from '@/lib/reports/excel-export';
 import { EmployeePerfReport, type EmployeePerfData } from '@/components/reports/employee-perf-report';
 import { getMonthlyPerformance, getYearlyPerformance } from '@/lib/dashboard/perf-queries';
@@ -252,7 +253,25 @@ export default function ReportsPage() {
       setExporting(false);
     }
   }
-
+  async function exportPptx() {
+    setExporting(true);
+    try {
+      setStatus(uiAr ? 'جارٍ إنشاء العرض…' : 'Building deck…');
+      if (isWeekly) {
+        if (!weeklyData) throw new Error('no data');
+        await exportWeeklyPptx(weeklyData, ar);
+      } else {
+        await exportAlignmentPptx(alignmentData, ar);
+      }
+      setStatus(uiAr ? 'تم التصدير ✓' : 'Exported ✓');
+      setTimeout(() => setStatus(''), 2500);
+    } catch (e) {
+      console.error('[reports pptx]', e);
+      setStatus('ERROR: ' + (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
   if (!user) return null;
 
   return (
@@ -328,6 +347,16 @@ export default function ReportsPage() {
             >
               <Download className="h-4 w-4" />
               Excel
+            </button>
+          )}
+          {(reportId === 'alignment' || isWeekly) && (
+            <button
+              onClick={exportPptx}
+              disabled={exporting || loading}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              PPTX
             </button>
           )}
           <button
