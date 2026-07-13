@@ -2,12 +2,10 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import * as XLSX from 'xlsx';
 import { useLanguage } from '@/providers/language-provider';
 import { getMonthlyPerformance, getYearlyPerformance, recentYearMonths } from '@/lib/dashboard/perf-queries';
 import { tierColor, tierLabel, type PerfTier } from '@/lib/dashboard/scoring';
 import { getDepartmentPerformance, getOrgWidePerformance } from '@/lib/dashboard/dept-queries';
-import { createClient } from '@/lib/supabase/client';
 
 type CellData = { composite: number; tier: PerfTier };
 type MemberRow = { userId: string; name: string; nameAr: string; cells: (CellData | null)[] };
@@ -37,15 +35,7 @@ export function ComparisonTable({ deptId, orgWide, ar: arProp }: { deptId: strin
     queryKey: ['dept-perf-compare', orgWide ? 'overall' : deptId, months[0]],
     queryFn: () => orgWide ? getOrgWidePerformance(months[0]) : getDepartmentPerformance(deptId!, months[0]),
   });
-  const exportsQ = useQuery({
-    queryKey: ['module-exports-enabled'],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data } = await supabase.from('org_module_settings').select('enabled').eq('module_key', 'exports').maybeSingle();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data as any)?.enabled ?? false;
-    },
-  });
+  
 
   const members = deptQ.data?.members ?? [];
 
@@ -82,21 +72,6 @@ export function ComparisonTable({ deptId, orgWide, ar: arProp }: { deptId: strin
 
   const matrix = matrixQ.data ?? [];
   const yearly = yearlyQ.data ?? [];
-  const canExport = exportsQ.data ?? false;
-
-  function exportExcel() {
-    if (!matrix.length) return;
-    const headers = [ar ? 'الموظف' : 'Member', ...months.map((ym) => monthShort(ym, ar)), ar ? 'السنة' : 'Year'];
-    const rows = matrix.map((row, i) => [
-      ar ? row.nameAr || row.name : row.name,
-      ...row.cells.map((c) => c?.composite ?? 0),
-      yearly[i]?.composite ?? 0,
-    ]);
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, ar ? 'الأداء الشهري' : 'Monthly Performance');
-    XLSX.writeFile(wb, `performance-${year}.xlsx`);
-  }
 
   if (deptQ.isLoading) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{ar ? 'جارٍ التحميل…' : 'Loading…'}</p>;
   if (!members.length) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{ar ? 'لا يوجد أعضاء.' : 'No members.'}</p>;
@@ -108,12 +83,6 @@ export function ComparisonTable({ deptId, orgWide, ar: arProp }: { deptId: strin
           <div style={{ fontSize: 14, fontWeight: 500 }}>{ar ? 'مقارنة شهرية' : 'Monthly comparison'} — {year}</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{ar ? 'المؤشر المركّب لكل موظف شهريًا' : 'Composite score per member per month'}</div>
         </div>
-        {canExport && (
-          <button onClick={exportExcel} disabled={!matrix.length}
-            style={{ fontSize: 12, padding: '6px 14px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'var(--surface-1)', cursor: 'pointer', color: 'var(--text-primary)' }}>
-            {ar ? '⬇ تصدير Excel' : '⬇ Export Excel'}
-          </button>
-        )}
       </div>
 
       {matrixQ.isLoading && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{ar ? 'جارٍ حساب المصفوفة…' : 'Computing matrix…'}</p>}
