@@ -5,8 +5,8 @@
 // handles Arabic BiDi correctly), each .report-page is captured, jsPDF writes the
 // file. RLS scopes the data automatically — no role logic needed here.
 import { useEffect, useRef, useState } from 'react';
+import { exportAlignmentExcel, exportWeeklyExcel, exportEmployeeExcel } from '@/lib/reports/excel-export';
 import { exportAlignmentPptx, exportWeeklyPptx } from '@/lib/reports/report-pptx';
-import { exportAlignmentExcel, exportWeeklyExcel } from '@/lib/reports/excel-export';
 import { EmployeePerfReport, type EmployeePerfData } from '@/components/reports/employee-perf-report';
 import { getMonthlyPerformance, getYearlyPerformance } from '@/lib/dashboard/perf-queries';
 import { getDepartmentPerformance, getOrgWidePerformance } from '@/lib/dashboard/dept-queries';
@@ -202,10 +202,12 @@ export default function ReportsPage() {
           scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
         });
         if (i > 0) pdf.addPage();
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pw, ph);
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pw, ph);
       }
 
-      const base = isWeekly
+      const base = isEmployees
+        ? (ar ? `أداء-الموظفين-${YEAR}` : `employee-performance-${YEAR}`)
+        : isWeekly
         ? (ar ? `التقرير-الأسبوعي-${weekLabel.slice(0, 10)}` : `weekly-report-${weekLabel.slice(0, 10)}`)
         : (ar ? `تقرير-المحاذاة-${YEAR}` : `alignment-report-${YEAR}`);
       pdf.save(base + '.pdf');
@@ -222,7 +224,10 @@ export default function ReportsPage() {
     setExporting(true);
     try {
       setStatus(uiAr ? 'جارٍ إنشاء الملف…' : 'Building workbook…');
-      if (isWeekly) {
+      if (isEmployees) {
+        if (!empQ.data) throw new Error('no data');
+        await exportEmployeeExcel(empQ.data, ar);
+      } else if (isWeekly) {
         if (!weeklyData) throw new Error('no data');
         await exportWeeklyExcel(weeklyData, ar);
       } else {

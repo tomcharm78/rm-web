@@ -260,3 +260,60 @@ export async function exportWeeklyExcel(data: WeeklyData, ar: boolean): Promise<
   const stamp = data.weekLabel.slice(0, 10);
   download(buf as ArrayBuffer, ar ? `التقرير-الأسبوعي-${stamp}.xlsx` : `weekly-report-${stamp}.xlsx`);
 }
+// ---------------------------------------------------------------- Report 4
+import type { EmployeePerfData } from '@/components/reports/employee-perf-report';
+import { tierFromComposite, tierLabel } from '@/lib/dashboard/scoring';
+
+export async function exportEmployeeExcel(data: EmployeePerfData, ar: boolean): Promise<void> {
+  const wb = new ExcelJS.Workbook();
+  wb.created = new Date();
+
+  const ranked = [...data.rows].sort((a, b) => b.yearly - a.yearly);
+
+  // How to read the scores — the legend comes FIRST, as in the PDF.
+  const s0 = wb.addWorksheet(ar ? 'كيف تُقرأ' : 'How to read');
+  styleSheet(s0, ar);
+  addTable(
+    s0,
+    ar ? 'الدرجة المركّبة (0–100): حجم العمل + سرعة الإنجاز' : 'Composite score (0–100): work volume + speed',
+    [ar ? 'الفئة' : 'Band', ar ? 'النطاق' : 'Range'],
+    [
+      [tierLabel('super', ar), '80 – 100'],
+      [tierLabel('high', ar), '60 – 79'],
+      [tierLabel('medium', ar), '40 – 59'],
+      [tierLabel('low', ar), ar ? 'أقل من 40' : 'Under 40'],
+      [ar ? 'فراغ' : 'Dash', ar ? 'لا نشاط مسجّل — وليس أداءً ضعيفًا' : 'No recorded activity — NOT poor performance'],
+    ],
+  );
+
+  // Yearly, ranked, with band.
+  const s1 = wb.addWorksheet(ar ? 'الأداء السنوي' : 'Yearly');
+  styleSheet(s1, ar);
+  addTable(
+    s1,
+    ar ? `الأداء السنوي ${data.year} — ${data.scopeLabel}` : `Yearly performance ${data.year} — ${data.scopeLabel}`,
+    [ar ? 'الموظف' : 'Employee', ar ? 'الدرجة' : 'Score', ar ? 'الفئة' : 'Band'],
+    ranked.map((r) => [
+      ar ? r.nameAr || r.name : r.name,
+      r.yearly,
+      tierLabel(tierFromComposite(r.yearly), ar),
+    ]),
+  );
+
+  // The month-by-month matrix.
+  const s2 = wb.addWorksheet(ar ? 'الأداء الشهري' : 'Monthly');
+  styleSheet(s2, ar);
+  addTable(
+    s2,
+    ar ? 'الدرجات الشهرية' : 'Monthly scores',
+    [ar ? 'الموظف' : 'Employee', ...data.monthLabels, ar ? 'السنة' : 'Year'],
+    ranked.map((r) => [
+      ar ? r.nameAr || r.name : r.name,
+      ...r.cells.map((c) => (c && c.composite > 0 ? c.composite : '—')),
+      r.yearly,
+    ]),
+  );
+
+  const buf = await wb.xlsx.writeBuffer();
+  download(buf as ArrayBuffer, ar ? `أداء-الموظفين-${data.year}.xlsx` : `employee-performance-${data.year}.xlsx`);
+}
