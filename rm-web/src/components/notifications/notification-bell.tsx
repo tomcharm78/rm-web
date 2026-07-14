@@ -78,7 +78,10 @@ export function NotificationBell() {
     }
     setOpen(false);
     if (n.entityType === 'task' && n.entityId) {
-      router.push(`/tasks/${n.entityId}`);
+      // A support request points at the task, but the subtask it concerns is
+      // A support request points at the task, but concerns a subtask buried in a
+      // collapsed milestone. Carry it so the task page opens the right one.
+      router.push(n.subtaskId ? `/tasks/${n.entityId}?subtask=${n.subtaskId}` : `/tasks/${n.entityId}`);
     } else if (n.entityType === 'vacation') {
       router.push('/vacations');
     } else if (n.entityType === 'approval') {

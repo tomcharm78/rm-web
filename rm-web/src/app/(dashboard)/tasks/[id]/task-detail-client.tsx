@@ -5,6 +5,7 @@
 // workflow, completion edit, reassign, cancel, edit) is added next.
 
 import { useAuth } from '@/providers/auth-provider';
+import { useSearchParams } from 'next/navigation';
 import { updateTaskDescription } from '@/lib/tasks/queries';
 import { taskHasActiveTaskForce } from '@/lib/task-force/queries';
 import { useMemo, type ReactNode } from 'react';
@@ -52,7 +53,9 @@ const PRIORITY_BADGE: Record<TaskPriority, string> = {
 export function TaskDetailClient({ taskId }: { taskId: string }) {
   const { language } = useLanguage();
   const ar = language === 'ar';
-
+// A support notification deep-links here with the subtask it concerns.
+  const searchParams = useSearchParams();
+  const focusSubtaskId = searchParams.get('subtask');
   const taskQ = useQuery({ queryKey: ['task', taskId], queryFn: () => getTask(taskId), refetchInterval: 10_000 });
   const historyQ = useQuery({
     queryKey: ['task-history', taskId],
@@ -257,7 +260,7 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
       <TaskActions task={task} />
       <TaskAcceptance task={task} />
 
-      <TaskMilestones task={task} />
+      <TaskMilestones task={task} focusSubtaskId={focusSubtaskId} />
       <AttachmentsPanel entityType="task" entityId={task.id} />
 
       <div className="mt-4">

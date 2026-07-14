@@ -28,7 +28,7 @@ function fmtDate(iso: string | null, ar: boolean): string {
   return d.toLocaleDateString(ar ? 'ar' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function TaskMilestones({ task }: { task: Task }) {
+export function TaskMilestones({ task, focusSubtaskId }: { task: Task; focusSubtaskId?: string | null }) {
   const { user } = useAuth();
   const { language } = useLanguage();
   const ar = language === 'ar';
@@ -116,6 +116,7 @@ export function TaskMilestones({ task }: { task: Task }) {
               users={namesQ.data ?? []}
               ownerOptions={ownerOptionsQ.data ?? []}
               currentUserId={user?.id ?? null}
+              focusSubtaskId={focusSubtaskId ?? null}
               onChanged={refresh}
             />
           ))}
@@ -230,7 +231,7 @@ export function TaskMilestones({ task }: { task: Task }) {
 }
 
 function MilestoneRow({
-  m, idx, totalMs, taskId, isAssignee, isSuper, isClosed, ar, nameOf, users, ownerOptions, currentUserId, onChanged,
+  m, idx, totalMs, taskId, isAssignee, isSuper, isClosed, ar, nameOf, users, ownerOptions, currentUserId, focusSubtaskId, onChanged,
 }: {
   m: TaskMilestone;
   idx: number;
@@ -243,10 +244,15 @@ function MilestoneRow({
   nameOf: (id: string | null) => string;
   users: { id: string; name: string; nameAr: string }[];
   ownerOptions: { id: string; name: string; nameAr: string }[];
+  focusSubtaskId: string | null;
   currentUserId: string | null;
   onChanged: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // A support notification deep-links to a subtask buried in a collapsed
+  // milestone — the approver could not find what they were being asked about.
+  // If this milestone holds that subtask, start expanded.
+  const holdsFocus = !!focusSubtaskId && (m.subtasks ?? []).some((s) => s.id === focusSubtaskId);
+  const [open, setOpen] = useState(holdsFocus);
   const [editMsTitle, setEditMsTitle] = useState(false);
   const [editMsEn, setEditMsEn] = useState(m.title);
   const [editMsAr, setEditMsAr] = useState(m.titleAr);
@@ -342,8 +348,12 @@ function MilestoneRow({
         <div className="border-t border-slate-100 px-3 py-2 bg-slate-50/60 space-y-2">
           <label className="text-xs text-slate-600 block">{ar ? 'عنوان المرحلة' : 'Milestone title'}</label>
           <div className="flex gap-2">
-            <Input dir="ltr" placeholder="EN" value={editMsEn} onChange={(e) => setEditMsEn(e.target.value)} className="text-sm" />
-            <Input dir="rtl" placeholder="AR" value={editMsAr} onChange={(e) => setEditMsAr(e.target.value)} className="text-sm" />
+            <Input
+              dir={ar ? 'rtl' : 'ltr'}
+              value={ar ? editMsAr : editMsEn}
+              onChange={(e) => (ar ? setEditMsAr(e.target.value) : setEditMsEn(e.target.value))}
+              className="text-sm"
+            />
           </div>
           <div className="flex gap-2">
             <Button onClick={() => editMsMut.mutate()} disabled={!editMsEn.trim() || editMsMut.isPending} className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700">
@@ -405,10 +415,18 @@ function MilestoneRow({
                 return editSubtask?.id === s.id ? (
                   <li key={s.id} className="rounded border border-slate-100 bg-white px-2 py-1.5 space-y-1">
                     <label className="text-xs text-slate-600">{ar ? 'عنوان المهمة الفرعية' : 'Sub-task title'}</label>
-                    <div className="flex gap-2">
-                      <Input dir="ltr" placeholder="EN" value={editSubtask.title} onChange={(e) => setEditSubtask({ ...editSubtask, title: e.target.value })} className="text-xs" />
-                      <Input dir="rtl" placeholder="AR" value={editSubtask.titleAr} onChange={(e) => setEditSubtask({ ...editSubtask, titleAr: e.target.value })} className="text-xs" />
-                    </div>
+                    <Input
+                      dir={ar ? 'rtl' : 'ltr'}
+                      value={ar ? editSubtask.titleAr : editSubtask.title}
+                      onChange={(e) =>
+                        setEditSubtask(
+                          ar
+                            ? { ...editSubtask, titleAr: e.target.value }
+                            : { ...editSubtask, title: e.target.value }
+                        )
+                      }
+                      className="text-xs"
+                    />
                     <label className="text-xs text-slate-600 block">{ar ? 'التاريخ' : 'Due date'}</label>
                     <input type="date" defaultValue={s.dueDate ?? ''} onChange={(e) => setEditSubtask({ ...editSubtask, dueDate: e.target.value })} className="rounded border border-slate-200 px-2 py-1 text-xs w-full" />
                     <div className="flex gap-1 pt-1">
@@ -419,7 +437,15 @@ function MilestoneRow({
                     </div>
                   </li>
                 ) : (
-                  <li key={s.id} className="rounded border border-slate-100 bg-white px-2 py-1.5">
+                  <li
+                    key={s.id}
+                    className={
+                      'rounded border px-2 py-1.5 ' +
+                      (s.id === focusSubtaskId
+                        ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200'  // deep-linked from a support notification
+                        : 'border-slate-100 bg-white')
+                    }
+                  >
                     <div className="flex items-center gap-2 text-sm">
                       <button
                         type="button"

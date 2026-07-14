@@ -27,6 +27,9 @@ export type Notification = {
   entityId: string | null;
   event: string | null;
   actorId: string | null;
+  // Support requests point at the TASK but concern a specific subtask, buried in
+  // a collapsed milestone. Carry it so the task page can open the right one.
+  subtaskId: string | null;
   createdAt: string;
 };
 
@@ -44,6 +47,7 @@ export function dbNotificationToNotification(r: NotificationRow): Notification {
     entityId: r.related_entity_id,
     event: typeof meta.event === 'string' ? meta.event : null,
     actorId: typeof meta.actorId === 'string' ? meta.actorId : null,
+    subtaskId: typeof meta.subtaskId === 'string' ? meta.subtaskId : null,
     createdAt: r.created_at,
   };
 }
