@@ -124,6 +124,7 @@ export type SessionRow = {
   participant_ids: string[];
   pending_ai_tasks: PendingAiTaskRow[];
   created_by_id: string;
+  department_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -197,6 +198,7 @@ export type Session = {
   participantIds: string[];
   pendingAiTasks: PendingAiTask[];
   createdById: string;
+  departmentId: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -339,6 +341,7 @@ export function dbRowToSession(row: SessionRow): Session {
     participantIds: row.participant_ids ?? [],
     pendingAiTasks: (row.pending_ai_tasks ?? []).map(aiTaskFromRow),
     createdById: row.created_by_id,
+    departmentId: row.department_id ?? null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
     deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,

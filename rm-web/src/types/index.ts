@@ -18,6 +18,7 @@ export type User = {
   lastLoginAt: string | null;
   permissions: UserPermission[];
   adminId: string | null;
+  departmentId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -50,6 +51,7 @@ export function dbUserToUser(row: DbUser): User {
     lastLoginAt: row.last_login_at,
     permissions: row.permissions,
     adminId: row.admin_id,
+    departmentId: row.department_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -5,6 +5,7 @@
 // Owns: search text, status filter, meeting-type filter, modal state for create.
 
 import { useState, useMemo } from 'react';
+import { listUserNames } from '@/lib/tasks/queries';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -64,6 +65,9 @@ export function SessionsPageClient() {
         departmentId: departmentId || undefined,
       }),
   });
+  const namesQ = useQuery({ queryKey: ['user-names'], queryFn: listUserNames });
+  const nameOf = (id: string) =>
+    namesQ.data?.find((u) => u.id === id)?.[language === 'ar' ? 'nameAr' : 'name'] ?? '—';
   const departmentsQ = useQuery({ queryKey: ['departments'], queryFn: listDepartments, enabled: user?.role === 'super_admin' });
 
   // Meeting-type filter is client-side since `listSessions` doesn't take it.
@@ -229,6 +233,9 @@ export function SessionsPageClient() {
                   <th className="px-4 py-3 font-medium">
                     {language === 'ar' ? 'العنوان' : 'Title'}
                   </th>
+                  <th className="px-4 py-3 font-medium hidden lg:table-cell">
+                    {language === 'ar' ? 'أنشأها' : 'Created by'}
+                  </th>
                   <th className="px-4 py-3 font-medium hidden sm:table-cell">
                     {language === 'ar' ? 'النوع' : 'Type'}
                   </th>
@@ -243,9 +250,17 @@ export function SessionsPageClient() {
                   </th>
                 </tr>
               </thead>
-              <tbody>
+               <tbody>
                 {sessions.map((s) => (
-                  <SessionRow key={s.id} session={s} language={language} />
+                  <SessionRow
+                    key={s.id}
+                    session={s}
+                    language={language}
+                    creatorName={nameOf(s.createdById)}
+                    userId={user?.id ?? null}
+                    userRole={user?.role ?? null}
+                    userDept={user?.departmentId ?? null}
+                  />
                 ))}
               </tbody>
             </table>
@@ -269,7 +284,32 @@ export function SessionsPageClient() {
   );
 }
 
-function SessionRow({ session, language }: { session: Session; language: 'en' | 'ar' }) {
+function visibilityReason(
+  s: Session,
+  userId: string | null,
+  role: string | null,
+  dept: string | null,
+  ar: boolean,
+): string | null {
+  if (userId && s.createdById === userId) return ar ? 'أنشأتها' : 'You created this';
+  if (userId && (s.participantIds ?? []).includes(userId)) return ar ? 'حضرتها' : 'You attended';
+  if (dept && s.departmentId === dept) return ar ? 'إدارتك' : 'Your department';
+  if (role === 'super_admin' || role === 'pmo' || role === 'pm') return ar ? 'إشراف' : 'Oversight';
+  return ar ? 'مرتبطة بعملك' : 'Linked to your work';
+}
+
+function SessionRow({
+  session, language, creatorName, userId, userRole, userDept,
+}: {
+  session: Session;
+  language: 'en' | 'ar';
+  creatorName: string;
+  userId: string | null;
+  userRole: string | null;
+  userDept: string | null;
+}) {
+  const ar = language === 'ar';
+  const reason = visibilityReason(session, userId, userRole, userDept, ar);
   return (
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
       <td className="px-4 py-3 align-top">
@@ -288,6 +328,14 @@ function SessionRow({ session, language }: { session: Session; language: 'en' | 
         <div className="text-xs text-slate-500 mt-0.5" dir={language === 'ar' ? 'ltr' : 'auto'}>
           {language === 'ar' ? session.title : session.titleAr}
         </div>
+      </td>
+      <td className="px-4 py-3 align-top hidden lg:table-cell">
+        <div className="text-slate-700">{creatorName}</div>
+        {reason && (
+          <span className="mt-0.5 inline-block text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+            {reason}
+          </span>
+        )}
       </td>
       <td className="px-4 py-3 align-top hidden sm:table-cell">
         <TypeBadge type={session.meetingType} language={language} />
