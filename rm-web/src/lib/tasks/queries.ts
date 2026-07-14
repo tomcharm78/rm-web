@@ -208,9 +208,33 @@ export async function listAssignableUsers(domainId?: string): Promise<Assignable
     .select('id, name, name_ar, role, avatar')
     .eq('is_active', true)
     .is('deleted_at', null)
-    .in('role', ['rm', 'arm', 'admin', 'super_admin']);
+    // PM and PMO are assignable too — governance roles do real work, and a PMO
+    // with no assignable PMs cannot delegate anything.
+    .in('role', ['rm', 'arm', 'admin', 'super_admin', 'pmo', 'pm']);
   if (ids) q = q.in('id', ids);
-  if (callerRole !== 'super_admin' && callerDept) q = q.eq('department_id', callerDept);
+
+  // Governance assignment policy:
+  //   pmo -> its PMs, department Admins, and super_admins (ask-support upward).
+  //   pm  -> peer PMs, Admins of its ASSIGNED departments only, and the PMO.
+  //   Neither assigns directly to rm/arm — work reaches the line through the
+  //   department's Admin (visibility ≠ authority).
+  if (callerRole === 'pmo') {
+    // + pmo so the caller can self-assign (anyone may assign to themselves)
+    q = q.in('role', ['pm', 'admin', 'super_admin', 'pmo']);
+  } else if (callerRole === 'pm') {
+    const { data: assigned } = await supabase
+      .from('pm_department_assignments')
+      .select('department_id')
+      .eq('pm_id', callerId);
+    const deptIds = (assigned ?? []).map((a: { department_id: string }) => a.department_id);
+    if (deptIds.length) {
+      q = q.or(`role.in.(pm,pmo),and(role.eq.admin,department_id.in.(${deptIds.join(',')}))`);
+    } else {
+      q = q.in('role', ['pm', 'pmo']);
+    }
+  } else if (callerRole !== 'super_admin' && callerDept) {
+    q = q.eq('department_id', callerDept);
+  }
 
   const { data, error } = await q.order('name', { ascending: true });
   if (error) throw new Error(error.message);
@@ -239,7 +263,9 @@ export async function createTask(input: TaskFormInput): Promise<Task> {
   if (!input.tatDueDate) throw new Error('due_date_required');
   if (!input.assignedToId) throw new Error('assignee_required');
   if (!input.domainId) throw new Error('domain_required');
-  if (!input.title.trim() || !input.titleAr.trim()) throw new Error('title_required');
+  // A title in EITHER language is enough — the UI writes to the column matching
+  // the user's language, and display falls back to whichever exists.
+  if (!input.title.trim() && !input.titleAr.trim()) throw new Error('title_required');
 
   const { data, error } = await supabase
     .from('tasks')
@@ -271,7 +297,8 @@ export async function createTask(input: TaskFormInput): Promise<Task> {
 export async function updateTask(taskId: string, input: TaskFormInput): Promise<Task> {
   const supabase = createClient();
   if (!input.tatDueDate) throw new Error('due_date_required');
-  if (!input.title.trim() || !input.titleAr.trim()) throw new Error('title_required');
+  // Either language suffices — see the create path above.
+  if (!input.title.trim() && !input.titleAr.trim()) throw new Error('title_required');
 
   const { data, error } = await supabase
     .from('tasks')
@@ -430,16 +457,19 @@ export async function softDeleteTask(taskId: string): Promise<void> {
     .eq('id', taskId);
   if (error) throw new Error(error.message);
 }
-export type UserName = { id: string; name: string; nameAr: string };
+export type UserName = { id: string; name: string; nameAr: string; role?: string };
 
 export async function listUserNames(): Promise<UserName[]> {
   const supabase = createClient();
-  const { data, error } = await supabase.from('users').select('id, name, name_ar');
+  // role is included so callers can gate on it (e.g. governance-owned tasks
+  // carry no goal link — see the task detail page).
+  const { data, error } = await supabase.from('users').select('id, name, name_ar, role');
   if (error) throw new Error(error.message);
-  return (data as { id: string; name: string; name_ar: string }[]).map((u) => ({
+  return (data as { id: string; name: string; name_ar: string; role: string }[]).map((u) => ({
     id: u.id,
     name: u.name,
     nameAr: u.name_ar,
+    role: u.role,
   }));
 }
 
@@ -462,7 +492,23 @@ export async function listDepartmentUserNames(): Promise<UserName[]> {
     .select('id, name, name_ar')
     .eq('is_active', true)
     .is('deleted_at', null);
-  if ((me as { role: string }).role !== 'super_admin') {
+  const myRole = (me as { role: string }).role;
+  if (myRole === 'pmo') {
+    // Governance chain: self, the PMs, and the PMO's own reporting super_admin.
+    q = q.or(`id.eq.${uid},role.eq.pm,role.eq.super_admin`);
+  } else if (myRole === 'pm') {
+    // Self, peer PMs, the PMO (support upward), and admins of ASSIGNED departments.
+    const { data: assigned } = await supabase
+      .from('pm_department_assignments')
+      .select('department_id')
+      .eq('pm_id', uid);
+    const deptIds = (assigned ?? []).map((a: { department_id: string }) => a.department_id);
+    if (deptIds.length) {
+      q = q.or(`id.eq.${uid},role.in.(pm,pmo),and(role.eq.admin,department_id.in.(${deptIds.join(',')}))`);
+    } else {
+      q = q.or(`id.eq.${uid},role.in.(pm,pmo)`);
+    }
+  } else if (myRole !== 'super_admin') {
     const dept = (me as { department_id: string | null }).department_id;
     q = dept ? q.eq('department_id', dept) : q.eq('id', uid);
   }
@@ -548,7 +594,8 @@ export async function addTaskMilestone(
   dueDate?: string | null
 ): Promise<TaskMilestone> {
   const supabase = createClient();
-  if (!title.trim()) throw new Error('milestone_title_required');
+  // Either language suffices — the UI writes the column matching the user's language.
+  if (!title.trim() && !titleAr.trim()) throw new Error('milestone_title_required');
   const { data: t } = await supabase.from('tasks').select('assigned_to_id').eq('id', taskId).single();
   const ownerId = (t as { assigned_to_id: string } | null)?.assigned_to_id ?? null;
   const { count } = await supabase
@@ -574,7 +621,8 @@ export async function addTaskMilestone(
 
 export async function editTaskMilestone(milestoneId: string, title: string, titleAr: string, dueDate?: string | null): Promise<void> {
   const supabase = createClient();
-  if (!title.trim()) throw new Error('milestone_title_required');
+  // Either language suffices — the UI writes the column matching the user's language.
+  if (!title.trim() && !titleAr.trim()) throw new Error('milestone_title_required');
   const patch: Record<string, unknown> = { title: title.trim(), title_ar: titleAr.trim(), updated_at: new Date().toISOString() };
   if (dueDate !== undefined) patch.due_date = dueDate || null;
   const { error } = await supabase.from('task_milestones').update(patch).eq('id', milestoneId);
@@ -784,7 +832,8 @@ export async function addMilestoneSubtask(
   dueDate?: string | null
 ): Promise<void> {
   const supabase = createClient();
-  if (!title.trim()) throw new Error('subtask_title_required');
+  // Either language suffices — the UI writes the column matching the user's language.
+  if (!title.trim() && !titleAr.trim()) throw new Error('subtask_title_required');
   // default the subtask owner to the milestone's owner
   const { data: ms } = await supabase
     .from('task_milestones')
@@ -810,7 +859,8 @@ export async function addMilestoneSubtask(
 }
 export async function editMilestoneSubtask(subtaskId: string, title: string, titleAr: string, dueDate?: string | null): Promise<void> {
   const supabase = createClient();
-  if (!title.trim()) throw new Error('subtask_title_required');
+  // Either language suffices — the UI writes the column matching the user's language.
+  if (!title.trim() && !titleAr.trim()) throw new Error('subtask_title_required');
   const patch: Record<string, unknown> = { title: title.trim(), title_ar: titleAr.trim(), updated_at: new Date().toISOString() };
   if (dueDate !== undefined) patch.due_date = dueDate || null;
   const { error } = await supabase.from('milestone_subtasks').update(patch).eq('id', subtaskId);
@@ -831,6 +881,25 @@ export async function deleteMilestoneSubtask(subtaskId: string, taskId: string):
   const { error } = await supabase.from('milestone_subtasks').delete().eq('id', subtaskId);
   if (error) throw new Error(error.message);
   await recomputeTaskCompletion(supabase, taskId);
+}
+
+// Edit just the description (owner/creator/super). The single-field bilingual
+// rule applies: the UI writes the column matching the user's language.
+export async function updateTaskDescription(
+  taskId: string,
+  description: string,
+  descriptionAr: string,
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      description: description,
+      description_ar: descriptionAr,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', taskId);
+  if (error) throw new Error(error.message);
 }
 
 export async function setMilestoneDueDate(milestoneId: string, dueDate: string | null): Promise<void> {
@@ -989,9 +1058,16 @@ export async function setSubtaskOwner(subtaskId: string, taskId: string, newOwne
     assigneeRole = assignee?.role ?? null;
   }
   const ownerRole = owner?.role ?? null;
+  // SUPPORT = assigning UPWARD in the hierarchy:
+  //   rm/arm  -> admin or super_admin   (the original line-worker case)
+  //   pm      -> pmo or super_admin     (governance asks its chain for support)
+  //   pmo     -> super_admin
   const isSupport =
-    (ownerRole === 'admin' || ownerRole === 'super_admin') &&
-    (assigneeRole === 'rm' || assigneeRole === 'arm');
+    ((ownerRole === 'admin' || ownerRole === 'super_admin') &&
+      (assigneeRole === 'rm' || assigneeRole === 'arm')) ||
+    ((ownerRole === 'pmo' || ownerRole === 'super_admin') &&
+      assigneeRole === 'pm') ||
+    (ownerRole === 'super_admin' && assigneeRole === 'pmo');
   const { error } = await supabase
     .from('milestone_subtasks')
     .update({

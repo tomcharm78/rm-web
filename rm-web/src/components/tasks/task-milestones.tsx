@@ -124,10 +124,15 @@ export function TaskMilestones({ task }: { task: Task }) {
 
       {isAssignee && !isClosed && (
         <div className="flex flex-col sm:flex-row gap-2 mb-1">
-          <Input dir="ltr" placeholder={ar ? 'مرحلة جديدة (EN)' : 'New milestone (EN)'} value={newM} onChange={(e) => setNewM(e.target.value)} />
-          <Input dir="rtl" placeholder={ar ? 'مرحلة جديدة (AR)' : 'New milestone (AR)'} value={newMAr} onChange={(e) => setNewMAr(e.target.value)} />
+          {/* One field — writes to the column matching the UI language. */}
+          <Input
+            dir={ar ? 'rtl' : 'ltr'}
+            placeholder={ar ? 'مرحلة جديدة' : 'New milestone'}
+            value={ar ? newMAr : newM}
+            onChange={(e) => (ar ? setNewMAr(e.target.value) : setNewM(e.target.value))}
+          />
           <Input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} className="sm:w-40" />
-          <Button onClick={() => addM.mutate()} disabled={!newM.trim() || addM.isPending} className="gap-1 bg-indigo-600 hover:bg-indigo-700 flex-shrink-0">
+          <Button onClick={() => addM.mutate()} disabled={(ar ? !newMAr.trim() : !newM.trim()) || addM.isPending} className="gap-1 bg-indigo-600 hover:bg-indigo-700 flex-shrink-0">
             {addM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             {ar ? 'إضافة' : 'Add'}
           </Button>
@@ -474,10 +479,15 @@ function MilestoneRow({
           )}
           {canManageSubs && (
             <div className="flex flex-col sm:flex-row gap-2">
-              <Input dir="ltr" placeholder={ar ? 'مهمة فرعية (EN)' : 'Sub-task (EN)'} value={subEn} onChange={(e) => setSubEn(e.target.value)} className="h-8 text-sm" />
-              <Input dir="rtl" placeholder={ar ? 'مهمة فرعية (AR)' : 'Sub-task (AR)'} value={subAr} onChange={(e) => setSubAr(e.target.value)} className="h-8 text-sm" />
+              <Input
+                dir={ar ? 'rtl' : 'ltr'}
+                placeholder={ar ? 'مهمة فرعية' : 'Sub-task'}
+                value={ar ? subAr : subEn}
+                onChange={(e) => (ar ? setSubAr(e.target.value) : setSubEn(e.target.value))}
+                className="h-8 text-sm"
+              />
               <Input type="date" value={subDue} onChange={(e) => setSubDue(e.target.value)} className="h-8 text-sm sm:w-40" />
-              <Button onClick={() => addSub.mutate()} disabled={!subEn.trim() || addSub.isPending} className="h-8 gap-1 bg-indigo-600 hover:bg-indigo-700 flex-shrink-0">
+              <Button onClick={() => addSub.mutate()} disabled={(ar ? !subAr.trim() : !subEn.trim()) || addSub.isPending} className="h-8 gap-1 bg-indigo-600 hover:bg-indigo-700 flex-shrink-0">
                 {addSub.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                 {ar ? 'إضافة' : 'Add'}
               </Button>

@@ -5,6 +5,7 @@
 // workflow, completion edit, reassign, cancel, edit) is added next.
 
 import { useAuth } from '@/providers/auth-provider';
+import { updateTaskDescription } from '@/lib/tasks/queries';
 import { taskHasActiveTaskForce } from '@/lib/task-force/queries';
 import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
@@ -68,6 +69,10 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
   });
   const isLead = !!tfActiveQ.data;
   const { user } = useAuth();
+  // Description inline edit — assignee, creator, or super_admin.
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descDraft, setDescDraft] = useState('');
+  const [descLocal, setDescLocal] = useState<{ en: string; ar: string } | null>(null);
   const sessionAccessQ = useQuery({
     queryKey: ['task-source-session', task?.sourceSessionId],
     queryFn: () => getSession(task!.sourceSessionId!),
@@ -109,6 +114,8 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
       </div>
     );
   }
+
+
   if (taskQ.isError) {
     return <div className="p-8 text-sm text-red-700">{(taskQ.error as Error)?.message}</div>;
   }
@@ -123,7 +130,10 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
       </div>
     );
   }
-
+  const canEditDesc =
+    !!user && !!task &&
+    (user.id === task.assignedToId || user.id === task.createdById || user.role === 'super_admin');
+  const shownDesc = descLocal ?? { en: task.description ?? '', ar: task.descriptionAr ?? '' };
   const over = isOverdue(task);
 
   return (
@@ -192,14 +202,54 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
         </div>
       </div>
 
-      {(task.description || task.descriptionAr) && (
+      {(shownDesc.en || shownDesc.ar || canEditDesc) && (
         <div className="bg-white rounded-lg border border-slate-200 p-5 mb-4">
-          <h2 className="text-sm font-semibold mb-2">{ar ? 'الوصف' : 'Description'}</h2>
-          {task.description && (
-            <p className="text-sm text-slate-700 whitespace-pre-wrap" dir="ltr">{task.description}</p>
-          )}
-          {task.descriptionAr && (
-            <p className="text-sm text-slate-700 whitespace-pre-wrap mt-2" dir="rtl">{task.descriptionAr}</p>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold">{ar ? 'الوصف' : 'Description'}</h2>
+            {canEditDesc && !editingDesc && (
+              <button
+                onClick={() => { setDescDraft(ar ? shownDesc.ar : shownDesc.en); setEditingDesc(true); }}
+                className="text-slate-400 hover:text-slate-600"
+                title={ar ? 'تعديل' : 'Edit'}
+              >
+                ✎
+              </button>
+            )}
+          </div>
+          {editingDesc ? (
+            <div>
+              <textarea
+                dir={ar ? 'rtl' : 'ltr'}
+                rows={3}
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+              <div className="mt-2 flex gap-2 justify-end">
+                <button onClick={() => setEditingDesc(false)} className="text-xs px-3 py-1.5 rounded-md border border-slate-200">
+                  {ar ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  onClick={async () => {
+                    const next = ar
+                      ? { en: shownDesc.en, ar: descDraft }
+                      : { en: descDraft, ar: shownDesc.ar };
+                    await updateTaskDescription(task.id, next.en, next.ar);
+                    setDescLocal(next);
+                    setEditingDesc(false);
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-md bg-slate-900 text-white"
+                >
+                  {ar ? 'حفظ' : 'Save'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {shownDesc.en && <p className="text-sm text-slate-700 whitespace-pre-wrap" dir="ltr">{shownDesc.en}</p>}
+              {shownDesc.ar && <p className="text-sm text-slate-700 whitespace-pre-wrap mt-2" dir="rtl">{shownDesc.ar}</p>}
+              {!shownDesc.en && !shownDesc.ar && <p className="text-sm text-slate-400">{ar ? 'لا يوجد وصف' : 'No description'}</p>}
+            </>
           )}
         </div>
       )}
@@ -211,7 +261,13 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
       <AttachmentsPanel entityType="task" entityId={task.id} />
 
       <div className="mt-4">
-        <GoalLinkPanel entityType="task" entityId={task.id} locked={task.status === 'done' || task.status === 'cancelled'} />
+        {/* Governance links OTHERS' work to strategy — their own tasks are
+            administrative and carry no goal link. */}
+        {!['pmo', 'pm'].includes(
+          (usersQ.data ?? []).find((u) => u.id === task.assignedToId)?.role ?? ''
+        ) && (
+          <GoalLinkPanel entityType="task" entityId={task.id} locked={task.status === 'done' || task.status === 'cancelled'} />
+        )}
       </div>
 
       {task.status === 'done' && task.closureNote && (

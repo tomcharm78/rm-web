@@ -40,7 +40,8 @@ export function TaskFormModal({
   const { user } = useAuth();
   const { language } = useLanguage();
   const ar = language === 'ar';
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  // Roles that can assign tasks to OTHERS. Governance (pmo/pm) delegates — that is its job.
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'pmo' || user?.role === 'pm';
 
   const [title, setTitle] = useState('');
   const [titleAr, setTitleAr] = useState('');
@@ -131,8 +132,9 @@ export function TaskFormModal({
 
   const submit = () => {
     setFormError('');
-    if (!title.trim() || !titleAr.trim()) {
-      setFormError(ar ? 'العنوان مطلوب بالعربية والإنجليزية' : 'Title is required in both English and Arabic');
+    // Only the ACTIVE language's title is required — one field, not two.
+    if (ar ? !titleAr.trim() : !title.trim()) {
+      setFormError(ar ? 'العنوان مطلوب' : 'Title is required');
       return;
     }
     if (!assignedToId) {
@@ -168,38 +170,28 @@ export function TaskFormModal({
         </div>
 
         <div className="p-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label>{ar ? 'العنوان (إنجليزي)' : 'Title (EN)'} *</Label>
-              <Input dir="ltr" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1" />
-            </div>
-            <div>
-              <Label>{ar ? 'العنوان (عربي)' : 'Title (AR)'} *</Label>
-              <Input dir="rtl" value={titleAr} onChange={(e) => setTitleAr(e.target.value)} className="mt-1" />
-            </div>
+          {/* ONE field per concept. The app already knows the language, so the
+              field writes to the matching column — Arabic UI fills title_ar,
+              English UI fills title. No toggle, no duplicate typing. Display
+              falls back to whichever language exists. */}
+          <div>
+            <Label>{ar ? 'العنوان' : 'Title'} *</Label>
+            <Input
+              dir={ar ? 'rtl' : 'ltr'}
+              value={ar ? titleAr : title}
+              onChange={(e) => (ar ? setTitleAr(e.target.value) : setTitle(e.target.value))}
+              className="mt-1"
+            />
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label>{ar ? 'الوصف (إنجليزي)' : 'Description (EN)'}</Label>
-              <textarea
-                dir="ltr"
-                rows={2}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-              />
-            </div>
-            <div>
-              <Label>{ar ? 'الوصف (عربي)' : 'Description (AR)'}</Label>
-              <textarea
-                dir="rtl"
-                rows={2}
-                value={descriptionAr}
-                onChange={(e) => setDescriptionAr(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-              />
-            </div>
+          <div>
+            <Label>{ar ? 'الوصف' : 'Description'}</Label>
+            <textarea
+              dir={ar ? 'rtl' : 'ltr'}
+              rows={2}
+              value={ar ? descriptionAr : description}
+              onChange={(e) => (ar ? setDescriptionAr(e.target.value) : setDescription(e.target.value))}
+              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
