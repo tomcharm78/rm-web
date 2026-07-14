@@ -89,6 +89,7 @@ export async function createDepartmentGoal(input: DepartmentGoalInput): Promise<
     q4_target: input.q4Target,
     target_type: input.targetType ?? 'count',
     unit_label: input.unitLabel ?? '',
+    formula: input.formula ?? '',
     current_value: input.currentValue ?? 0,
     created_by_id: user?.id ?? null,
   });
@@ -109,6 +110,7 @@ export async function updateDepartmentGoal(id: string, input: Partial<Department
   if (input.q3Target !== undefined) patch.q3_target = input.q3Target;
   if (input.q4Target !== undefined) patch.q4_target = input.q4Target;
   if (input.targetType !== undefined) patch.target_type = input.targetType;
+  if (input.formula !== undefined) patch.formula = input.formula;
   if (input.unitLabel !== undefined) patch.unit_label = input.unitLabel;
   if (input.currentValue !== undefined) patch.current_value = input.currentValue;
   const { error } = await supabase.from('department_goals').update(patch).eq('id', id);

@@ -18,7 +18,7 @@ const INK = '2b2b2b';
 const W = 13.333; // 16:9 inches
 // const H = 7.5;
 
-export async function exportScorecardsPptx(cards: Scorecard[], ar: boolean, scopeLabel: string): Promise<void> {
+export async function exportScorecardsPptx(cards: Scorecard[], ar: boolean, scopeLabel: string, orgName: string): Promise<void> {
   const PptxGenJS = await loadPptxGen();
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: 'WIDE', width: 13.333, height: 7.5 });
@@ -91,7 +91,7 @@ export async function exportScorecardsPptx(cards: Scorecard[], ar: boolean, scop
 
     // Row 0: code (empty) | KPI name
     label(ar ? 'رمز المؤشر' : 'KPI code', rowY(0), 0.02, 0.09);
-    value('', rowY(0), 0.115, 0.07, { fill: CREAM });
+    value(c.code, rowY(0), 0.115, 0.07, { fill: CREAM });
     label(ar ? 'اسم المؤشر التنفيذي' : 'KPI name', rowY(0), 0.19, 0.11);
     value(gTitle, rowY(0), 0.305, 0.33, { fill: CREAM, size: 12 });
     label(ar ? 'الهدف الاستراتيجي المرتبط' : 'Linked strategic goal', rowY(0), 0.645, 0.12);
@@ -101,9 +101,9 @@ export async function exportScorecardsPptx(cards: Scorecard[], ar: boolean, scop
     label(ar ? 'مالك المؤشر' : 'Owner', rowY(1), 0.02, 0.09);
     value(dept, rowY(1), 0.115, 0.24);
     label(ar ? 'مصدر البيانات' : 'Data source', rowY(1), 0.365, 0.10);
-    value('', rowY(1), 0.47, 0.17);
-    label(ar ? 'المؤشر الاستراتيجي المرتبط' : 'Strategic indicator', rowY(1), 0.645, 0.12);
-    value('', rowY(1), 0.77, 0.21);
+    value(orgName, rowY(1), 0.47, 0.17);
+    label(ar ? 'الهدف الاستراتيجي للمنظمة' : 'Organisation strategic goal', rowY(1), 0.645, 0.12);
+    value(ar ? c.orgGoalTitleAr || c.orgGoalTitle : c.orgGoalTitle, rowY(1), 0.77, 0.21);
 
     // Row 2: description — full width
     label(ar ? 'وصف المؤشر' : 'Description', rowY(2), 0.02, 0.09);
@@ -111,7 +111,7 @@ export async function exportScorecardsPptx(cards: Scorecard[], ar: boolean, scop
 
     // Row 3: formula (empty) — full width
     label(ar ? 'معادلة القياس' : 'Formula', rowY(3), 0.02, 0.09);
-    value('', rowY(3), 0.115, 0.865);
+    value(c.formula, rowY(3), 0.115, 0.865);
 
     // Row 4: baseline/current | unit | frequency | quarterly targets label + Q boxes
     label(ar ? 'القيمة الحالية' : 'Current value', rowY(4), 0.02, 0.09);

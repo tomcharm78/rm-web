@@ -248,7 +248,7 @@ export default function ReportsPage() {
       setStatus(uiAr ? 'جارٍ إنشاء البطاقات…' : 'Building scorecards…');
       const cards = await getScorecards(scopeDeptId || null, YEAR);
       if (cards.length === 0) throw new Error(uiAr ? 'لا توجد مؤشرات' : 'No KPIs in scope');
-      await exportScorecardsPptx(cards, ar, scopeLabel + ' · ' + YEAR);
+      await exportScorecardsPptx(cards, ar, scopeLabel + ' · ' + YEAR, ar ? (orgNameAr || orgName) : orgName);
       setStatus(uiAr ? 'تم التصدير ✓' : 'Exported ✓');
       setTimeout(() => setStatus(''), 2500);
     } catch (e) {

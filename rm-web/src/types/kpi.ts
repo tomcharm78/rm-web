@@ -83,6 +83,7 @@ export type DepartmentGoal = {
   deputyshipGoalId: string;
   targetType: TargetType;
   unitLabel: string;
+  formula: string;
   currentValue: number;
   title: string;
   titleAr: string;
@@ -100,7 +101,7 @@ export type DepartmentGoal = {
 export function dbDepartmentGoalToGoal(r: DepartmentGoalRow): DepartmentGoal {
   return {
     id: r.id, departmentId: r.department_id, deputyshipGoalId: r.deputyship_goal_id,
-    targetType: r.target_type, unitLabel: r.unit_label ?? '', currentValue: r.current_value ?? 0,
+    targetType: r.target_type, unitLabel: r.unit_label ?? '', currentValue: r.current_value ?? 0, formula: r.formula ?? '',
     title: r.title, titleAr: r.title_ar,
     description: r.description, descriptionAr: r.description_ar,
     year: r.year,
@@ -124,6 +125,7 @@ export type DepartmentGoalInput = {
   deputyshipGoalId: string;
   targetType?: TargetType;
   unitLabel?: string;
+  formula?: string;
   currentValue?: number;
   title: string; titleAr: string;
   description?: string; descriptionAr?: string;
