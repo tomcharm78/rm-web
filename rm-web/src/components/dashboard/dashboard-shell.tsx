@@ -78,7 +78,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'reports', href: '/reports', icon: BarChart3, labelEn: 'Reports', labelAr: 'التقارير', enabled: true, module: 'reports', roles: ['admin', 'super_admin', 'pmo', 'pm'] },
   { id: 'kpis', href: '/kpis', icon: Target, labelEn: 'KPIs', labelAr: 'مؤشرات الأداء', enabled: true, module: 'kpis', roles: ['admin', 'super_admin', 'pmo', 'pm'] },
   { id: 'users', href: '/users', icon: Users, labelEn: 'Users', labelAr: 'المستخدمون', enabled: true, roles: ['admin', 'super_admin', 'pmo'] },
-  { id: 'settings', href: '/settings', icon: Settings, labelEn: 'Settings', labelAr: 'الإعدادات', enabled: false },
+  { id: 'settings', href: '/settings', icon: Settings, labelEn: 'Settings', labelAr: 'الإعدادات', enabled: true },
 ];
 
 export function DashboardShell({

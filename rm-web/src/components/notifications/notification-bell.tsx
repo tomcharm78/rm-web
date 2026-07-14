@@ -86,6 +86,8 @@ export function NotificationBell() {
       router.push('/vacations');
     } else if (n.entityType === 'approval') {
       router.push('/approvals');
+    } else if (n.entityType === 'support') {
+      router.push('/settings');
     }
   };
 
