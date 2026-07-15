@@ -13,35 +13,13 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 
+CREATE SCHEMA IF NOT EXISTS "public";
+
+
+ALTER SCHEMA "public" OWNER TO "pg_database_owner";
+
+
 COMMENT ON SCHEMA "public" IS 'standard public schema';
-
-
-
-CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
-
-
-
-
-
-
-CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
-
-
-
-
-
-
-CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
-
-
-
-
-
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
-
-
-
 
 
 
@@ -209,9 +187,7 @@ CREATE TYPE "public"."user_role" AS ENUM (
     'rm',
     'arm',
     'investor',
-    'stakeholder',
-    'pmo',
-    'pm'
+    'stakeholder'
 );
 
 
@@ -744,20 +720,6 @@ $$;
 ALTER FUNCTION "public"."current_user_domain_ids"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."current_user_is_governance"() RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-  select exists (
-    select 1 from public.users
-    where id = auth.uid() and role in ('pmo', 'pm') and deleted_at is null
-  );
-$$;
-
-
-ALTER FUNCTION "public"."current_user_is_governance"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."current_user_is_manager"() RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -980,43 +942,6 @@ end $$;
 ALTER FUNCTION "public"."emit_webhook_event"("p_entity_type" "text", "p_entity_id" "uuid", "p_event_type" "text", "p_payload" "jsonb", "p_org_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."governance_covers_department"("p_dept" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-  select case
-    when exists (
-      select 1 from public.users
-      where id = auth.uid() and role = 'pmo' and deleted_at is null
-    ) then true
-    when exists (
-      select 1 from public.users
-      where id = auth.uid() and role = 'pm' and deleted_at is null
-    ) then exists (
-      select 1 from public.pm_department_assignments a
-      where a.pm_id = auth.uid() and a.department_id = p_dept
-    )
-    else false
-  end;
-$$;
-
-
-ALTER FUNCTION "public"."governance_covers_department"("p_dept" "uuid") OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."governance_covers_user"("p_user" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-  select public.governance_covers_department(
-    (select department_id from public.users where id = p_user)
-  );
-$$;
-
-
-ALTER FUNCTION "public"."governance_covers_user"("p_user" "uuid") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."has_permission"("perm" "public"."user_permission") RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -1138,54 +1063,6 @@ end; $$;
 
 
 ALTER FUNCTION "public"."notify_subtask_support"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."notify_support_request"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-DECLARE
-  v_owner uuid;
-  v_requester_name text;
-BEGIN
-  IF TG_OP = 'INSERT' THEN
-    SELECT id INTO v_owner FROM public.users
-      WHERE can_manage_modules = true AND is_active = true
-      LIMIT 1;
-    SELECT name INTO v_requester_name FROM public.users WHERE id = NEW.requester_id;
-
-    IF v_owner IS NOT NULL THEN
-      INSERT INTO public.notifications
-        (user_id, organization_id, type, read, title, title_ar, message, message_ar,
-         related_entity_type, related_entity_id, source_metadata)
-      VALUES (v_owner, NEW.organization_id, 'info', false,
-        'New support request', 'طلب دعم فني جديد',
-        coalesce(v_requester_name, 'A user') || ' reported an issue in: ' || NEW.module_key,
-        'تم الإبلاغ عن مشكلة في: ' || NEW.module_key,
-        'support', NEW.id,
-        jsonb_build_object('event', 'support_request_created'));
-    END IF;
-
-  ELSIF TG_OP = 'UPDATE'
-        AND NEW.status = 'closed'
-        AND OLD.status IS DISTINCT FROM 'closed' THEN
-    INSERT INTO public.notifications
-      (user_id, organization_id, type, read, title, title_ar, message, message_ar,
-       related_entity_type, related_entity_id, source_metadata)
-    VALUES (NEW.requester_id, NEW.organization_id, 'success', false,
-      'Support request answered', 'تم الرد على طلب الدعم',
-      coalesce(NEW.response, 'Your support request has been closed.'),
-      coalesce(NEW.response, 'تم إغلاق طلب الدعم الخاص بك.'),
-      'support', NEW.id,
-      jsonb_build_object('event', 'support_request_closed'));
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."notify_support_request"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."notify_task_assignment"() RETURNS "trigger"
@@ -1618,8 +1495,7 @@ CREATE TABLE IF NOT EXISTS "public"."challenge_goals" (
     "department_goal_id" "uuid" NOT NULL,
     "linked_by_id" "uuid",
     "organization_id" "uuid" DEFAULT '00000000-0000-0000-0000-000000000001'::"uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "linked_by_role" "public"."user_role"
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -1772,17 +1648,12 @@ CREATE TABLE IF NOT EXISTS "public"."department_goals" (
     "target_type" "text" DEFAULT 'count'::"text" NOT NULL,
     "unit_label" "text" DEFAULT ''::"text" NOT NULL,
     "current_value" numeric DEFAULT 0 NOT NULL,
-    "formula" "text" DEFAULT ''::"text" NOT NULL,
     CONSTRAINT "department_goals_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'archived'::"text"]))),
     CONSTRAINT "department_goals_target_type_check" CHECK (("target_type" = ANY (ARRAY['count'::"text", 'percentage'::"text", 'sar'::"text"])))
 );
 
 
 ALTER TABLE "public"."department_goals" OWNER TO "postgres";
-
-
-COMMENT ON COLUMN "public"."department_goals"."formula" IS 'Measurement equation shown on the KPI scorecard (معادلة القياس). Single field — notation, not prose.';
-
 
 
 CREATE TABLE IF NOT EXISTS "public"."departments" (
@@ -2054,18 +1925,6 @@ CREATE TABLE IF NOT EXISTS "public"."performance_weights" (
 ALTER TABLE "public"."performance_weights" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."pm_department_assignments" (
-    "pm_id" "uuid" NOT NULL,
-    "department_id" "uuid" NOT NULL,
-    "assigned_by_id" "uuid",
-    "organization_id" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
-ALTER TABLE "public"."pm_department_assignments" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."sent_emails" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "batch_id" "uuid" NOT NULL,
@@ -2218,30 +2077,6 @@ CREATE TABLE IF NOT EXISTS "public"."sub_domains" (
 
 
 ALTER TABLE "public"."sub_domains" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."support_requests" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" "uuid" DEFAULT '00000000-0000-0000-0000-000000000001'::"uuid" NOT NULL,
-    "requester_id" "uuid" NOT NULL,
-    "module_key" "text" NOT NULL,
-    "activity" "text" NOT NULL,
-    "problem" "text" NOT NULL,
-    "details" "text" DEFAULT ''::"text" NOT NULL,
-    "context" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "attachment_path" "text",
-    "status" "text" DEFAULT 'open'::"text" NOT NULL,
-    "response" "text",
-    "closed_by_id" "uuid",
-    "closed_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "deleted_at" timestamp with time zone,
-    CONSTRAINT "support_requests_status_check" CHECK (("status" = ANY (ARRAY['open'::"text", 'closed'::"text"])))
-);
-
-
-ALTER TABLE "public"."support_requests" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."survey_answers" (
@@ -2401,8 +2236,7 @@ CREATE TABLE IF NOT EXISTS "public"."task_goals" (
     "department_goal_id" "uuid" NOT NULL,
     "linked_by_id" "uuid",
     "organization_id" "uuid" DEFAULT '00000000-0000-0000-0000-000000000001'::"uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "linked_by_role" "public"."user_role"
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -2772,11 +2606,6 @@ ALTER TABLE ONLY "public"."performance_weights"
 
 
 
-ALTER TABLE ONLY "public"."pm_department_assignments"
-    ADD CONSTRAINT "pm_department_assignments_pkey" PRIMARY KEY ("pm_id", "department_id");
-
-
-
 ALTER TABLE ONLY "public"."sent_emails"
     ADD CONSTRAINT "sent_emails_pkey" PRIMARY KEY ("id");
 
@@ -2819,11 +2648,6 @@ ALTER TABLE ONLY "public"."sub_domains"
 
 ALTER TABLE ONLY "public"."sub_domains"
     ADD CONSTRAINT "sub_domains_slug_key" UNIQUE ("slug");
-
-
-
-ALTER TABLE ONLY "public"."support_requests"
-    ADD CONSTRAINT "support_requests_pkey" PRIMARY KEY ("id");
 
 
 
@@ -3376,14 +3200,6 @@ CREATE INDEX "strategic_goals_tier_year_idx" ON "public"."strategic_goals" USING
 
 
 
-CREATE INDEX "support_requests_requester_idx" ON "public"."support_requests" USING "btree" ("requester_id");
-
-
-
-CREATE INDEX "support_requests_status_idx" ON "public"."support_requests" USING "btree" ("status");
-
-
-
 CREATE INDEX "task_goals_goal_idx" ON "public"."task_goals" USING "btree" ("department_goal_id");
 
 
@@ -3525,10 +3341,6 @@ CREATE OR REPLACE TRIGGER "trg_notify_approval_request" AFTER INSERT ON "public"
 
 
 CREATE OR REPLACE TRIGGER "trg_notify_subtask_support" AFTER INSERT OR UPDATE OF "support_status" ON "public"."milestone_subtasks" FOR EACH ROW EXECUTE FUNCTION "public"."notify_subtask_support"();
-
-
-
-CREATE OR REPLACE TRIGGER "trg_notify_support_request" AFTER INSERT OR UPDATE ON "public"."support_requests" FOR EACH ROW EXECUTE FUNCTION "public"."notify_support_request"();
 
 
 
@@ -3947,21 +3759,6 @@ ALTER TABLE ONLY "public"."performance_weights"
 
 
 
-ALTER TABLE ONLY "public"."pm_department_assignments"
-    ADD CONSTRAINT "pm_department_assignments_assigned_by_id_fkey" FOREIGN KEY ("assigned_by_id") REFERENCES "public"."users"("id");
-
-
-
-ALTER TABLE ONLY "public"."pm_department_assignments"
-    ADD CONSTRAINT "pm_department_assignments_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."pm_department_assignments"
-    ADD CONSTRAINT "pm_department_assignments_pm_id_fkey" FOREIGN KEY ("pm_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."sent_emails"
     ADD CONSTRAINT "sent_emails_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "public"."email_batches"("id") ON DELETE CASCADE;
 
@@ -4069,21 +3866,6 @@ ALTER TABLE ONLY "public"."sub_domains"
 
 ALTER TABLE ONLY "public"."sub_domains"
     ADD CONSTRAINT "sub_domains_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
-
-
-
-ALTER TABLE ONLY "public"."support_requests"
-    ADD CONSTRAINT "support_requests_closed_by_id_fkey" FOREIGN KEY ("closed_by_id") REFERENCES "public"."users"("id");
-
-
-
-ALTER TABLE ONLY "public"."support_requests"
-    ADD CONSTRAINT "support_requests_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id");
-
-
-
-ALTER TABLE ONLY "public"."support_requests"
-    ADD CONSTRAINT "support_requests_requester_id_fkey" FOREIGN KEY ("requester_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -4430,10 +4212,6 @@ ALTER TABLE ONLY "public"."webhook_subscriptions"
 ALTER TABLE "public"."approval_requests" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "approval_requests_governance_read" ON "public"."approval_requests" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND "public"."current_user_is_governance"() AND ("deleted_at" IS NULL) AND "public"."governance_covers_user"("requester_id")));
-
-
-
 CREATE POLICY "approval_requests_insert" ON "public"."approval_requests" FOR INSERT WITH CHECK ((("organization_id" = "public"."current_user_organization_id"()) AND ("requester_id" = "auth"."uid"()) AND ("status" = 'pending'::"public"."approval_status")));
 
 
@@ -4477,20 +4255,6 @@ CREATE POLICY "audit_logs_read" ON "public"."audit_logs" FOR SELECT USING ((("pu
 
 
 ALTER TABLE "public"."challenge_goals" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "challenge_goals_governance_read" ON "public"."challenge_goals" FOR SELECT USING (("public"."current_user_is_governance"() AND (EXISTS ( SELECT 1
-   FROM "public"."challenges" "c"
-  WHERE (("c"."id" = "challenge_goals"."challenge_id") AND ("public"."governance_covers_user"("c"."created_by_id") OR "public"."governance_covers_user"("c"."assigned_to_id")))))));
-
-
-
-CREATE POLICY "challenge_goals_governance_write" ON "public"."challenge_goals" USING (("public"."current_user_is_governance"() AND (EXISTS ( SELECT 1
-   FROM "public"."challenges" "c"
-  WHERE (("c"."id" = "challenge_goals"."challenge_id") AND ("public"."governance_covers_user"("c"."created_by_id") OR "public"."governance_covers_user"("c"."assigned_to_id"))))))) WITH CHECK (("public"."current_user_is_governance"() AND (EXISTS ( SELECT 1
-   FROM "public"."challenges" "c"
-  WHERE (("c"."id" = "challenge_goals"."challenge_id") AND ("public"."governance_covers_user"("c"."created_by_id") OR "public"."governance_covers_user"("c"."assigned_to_id")))))));
-
 
 
 CREATE POLICY "challenge_goals_read" ON "public"."challenge_goals" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND (NOT "public"."current_user_is_stakeholder"())));
@@ -4566,10 +4330,6 @@ CREATE POLICY "challenges_delete" ON "public"."challenges" FOR DELETE USING ("pu
 
 
 
-CREATE POLICY "challenges_governance_read" ON "public"."challenges" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND "public"."current_user_is_governance"() AND ("public"."governance_covers_user"("created_by_id") OR "public"."governance_covers_user"("assigned_to_id"))));
-
-
-
 CREATE POLICY "challenges_insert" ON "public"."challenges" FOR INSERT WITH CHECK ((("organization_id" = "public"."current_user_organization_id"()) AND ("created_by_id" = "auth"."uid"())));
 
 
@@ -4610,10 +4370,6 @@ CREATE POLICY "csa_update" ON "public"."challenge_stakeholder_access" FOR UPDATE
 
 
 ALTER TABLE "public"."department_goals" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "department_goals_governance_read" ON "public"."department_goals" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND "public"."current_user_is_governance"() AND "public"."governance_covers_department"("department_id")));
-
 
 
 CREATE POLICY "department_goals_read" ON "public"."department_goals" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND (NOT "public"."current_user_is_stakeholder"()) AND ("public"."current_user_is_super"() OR ("department_id" = "public"."current_user_department_id"()))));
@@ -4869,21 +4625,6 @@ CREATE POLICY "perf_weights_write" ON "public"."performance_weights" USING ((("o
 ALTER TABLE "public"."performance_weights" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."pm_department_assignments" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "pm_dept_assignments_read" ON "public"."pm_department_assignments" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND (("pm_id" = "auth"."uid"()) OR ("public"."current_user_role"() = ANY (ARRAY['pmo'::"public"."user_role", 'super_admin'::"public"."user_role"])))));
-
-
-
-CREATE POLICY "pm_dept_assignments_write" ON "public"."pm_department_assignments" USING ((("organization_id" = "public"."current_user_organization_id"()) AND (("public"."current_user_role"() = 'super_admin'::"public"."user_role") OR (("public"."current_user_role"() = 'pmo'::"public"."user_role") AND (EXISTS ( SELECT 1
-   FROM "public"."users" "u"
-  WHERE (("u"."id" = "pm_department_assignments"."pm_id") AND ("u"."admin_id" = "auth"."uid"()) AND ("u"."role" = 'pm'::"public"."user_role")))))))) WITH CHECK ((("organization_id" = "public"."current_user_organization_id"()) AND (("public"."current_user_role"() = 'super_admin'::"public"."user_role") OR (("public"."current_user_role"() = 'pmo'::"public"."user_role") AND (EXISTS ( SELECT 1
-   FROM "public"."users" "u"
-  WHERE (("u"."id" = "pm_department_assignments"."pm_id") AND ("u"."admin_id" = "auth"."uid"()) AND ("u"."role" = 'pm'::"public"."user_role"))))))));
-
-
-
 ALTER TABLE "public"."sent_emails" ENABLE ROW LEVEL SECURITY;
 
 
@@ -4926,19 +4667,13 @@ CREATE POLICY "sessions_delete" ON "public"."sessions" FOR DELETE USING ((("orga
 
 
 
-CREATE POLICY "sessions_delete_wall" ON "public"."sessions" AS RESTRICTIVE FOR DELETE USING (("public"."current_user_is_super"() OR ("department_id" = "public"."current_user_department_id"()) OR "public"."governance_covers_department"("department_id")));
-
-
-
-CREATE POLICY "sessions_governance_read" ON "public"."sessions" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND "public"."current_user_is_governance"() AND ("deleted_at" IS NULL) AND "public"."governance_covers_department"("department_id")));
+CREATE POLICY "sessions_dept_wall" ON "public"."sessions" AS RESTRICTIVE USING (("public"."current_user_is_super"() OR ("department_id" = "public"."current_user_department_id"()) OR (EXISTS ( SELECT 1
+   FROM "public"."tasks" "t"
+  WHERE (("t"."source_session_id" = "sessions"."id") AND (("t"."assigned_to_id" = "auth"."uid"()) OR ("t"."created_by_id" = "auth"."uid"())))))));
 
 
 
 CREATE POLICY "sessions_insert" ON "public"."sessions" FOR INSERT WITH CHECK ((("organization_id" = "public"."current_user_organization_id"()) AND ("public"."current_user_role"() = ANY (ARRAY['rm'::"public"."user_role", 'arm'::"public"."user_role", 'admin'::"public"."user_role", 'super_admin'::"public"."user_role"]))));
-
-
-
-CREATE POLICY "sessions_insert_wall" ON "public"."sessions" AS RESTRICTIVE FOR INSERT WITH CHECK (("public"."current_user_is_super"() OR ("department_id" = "public"."current_user_department_id"()) OR "public"."governance_covers_department"("department_id")));
 
 
 
@@ -4952,22 +4687,7 @@ CREATE POLICY "sessions_read_task_assignee" ON "public"."sessions" FOR SELECT TO
 
 
 
-CREATE POLICY "sessions_read_wall" ON "public"."sessions" AS RESTRICTIVE FOR SELECT USING (("public"."current_user_is_super"() OR ("department_id" = "public"."current_user_department_id"()) OR "public"."governance_covers_department"("department_id") OR (EXISTS ( SELECT 1
-   FROM "public"."tasks" "t"
-  WHERE (("t"."source_session_id" = "sessions"."id") AND (("t"."assigned_to_id" = "auth"."uid"()) OR ("t"."created_by_id" = "auth"."uid"()))))) OR (EXISTS ( SELECT 1
-   FROM ("public"."tasks" "t"
-     JOIN "public"."users" "u" ON (("u"."id" = "t"."assigned_to_id")))
-  WHERE (("t"."source_session_id" = "sessions"."id") AND ("t"."deleted_at" IS NULL) AND ("u"."department_id" = "public"."current_user_department_id"()) AND ("public"."current_user_role"() = 'admin'::"public"."user_role"))))));
-
-
-
 CREATE POLICY "sessions_update" ON "public"."sessions" FOR UPDATE USING ((("organization_id" = "public"."current_user_organization_id"()) AND (("public"."current_user_role"() = ANY (ARRAY['super_admin'::"public"."user_role", 'admin'::"public"."user_role"])) OR ("created_by_id" = "auth"."uid"())))) WITH CHECK (("organization_id" = "public"."current_user_organization_id"()));
-
-
-
-CREATE POLICY "sessions_update_wall" ON "public"."sessions" AS RESTRICTIVE FOR UPDATE USING (("public"."current_user_is_super"() OR ("department_id" = "public"."current_user_department_id"()) OR (EXISTS ( SELECT 1
-   FROM "public"."tasks" "t"
-  WHERE (("t"."source_session_id" = "sessions"."id") AND (("t"."assigned_to_id" = "auth"."uid"()) OR ("t"."created_by_id" = "auth"."uid"()))))) OR "public"."governance_covers_department"("department_id")));
 
 
 
@@ -4983,10 +4703,6 @@ ALTER TABLE "public"."strategic_goal_parents" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."strategic_goals" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "strategic_goals_governance_read" ON "public"."strategic_goals" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND "public"."current_user_is_governance"()));
-
 
 
 CREATE POLICY "strategic_goals_read" ON "public"."strategic_goals" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND (NOT "public"."current_user_is_stakeholder"())));
@@ -5009,25 +4725,6 @@ CREATE POLICY "sub_domains_super_admin" ON "public"."sub_domains" USING ((("orga
 
 
 CREATE POLICY "sub_domains_write_super" ON "public"."sub_domains" USING (("public"."current_user_role"() = 'super_admin'::"public"."user_role"));
-
-
-
-ALTER TABLE "public"."support_requests" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "support_requests_insert" ON "public"."support_requests" FOR INSERT WITH CHECK ((("auth"."uid"() IS NOT NULL) AND ("requester_id" = "auth"."uid"()) AND ("organization_id" = "public"."current_user_organization_id"())));
-
-
-
-CREATE POLICY "support_requests_owner_update" ON "public"."support_requests" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."users" "u"
-  WHERE (("u"."id" = "auth"."uid"()) AND ("u"."can_manage_modules" = true)))));
-
-
-
-CREATE POLICY "support_requests_read" ON "public"."support_requests" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND (("requester_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
-   FROM "public"."users" "u"
-  WHERE (("u"."id" = "auth"."uid"()) AND ("u"."can_manage_modules" = true)))))));
 
 
 
@@ -5141,20 +4838,6 @@ CREATE POLICY "task_force_requests_update" ON "public"."task_force_requests" FOR
 ALTER TABLE "public"."task_goals" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "task_goals_governance_read" ON "public"."task_goals" FOR SELECT USING (("public"."current_user_is_governance"() AND (EXISTS ( SELECT 1
-   FROM "public"."tasks" "t"
-  WHERE (("t"."id" = "task_goals"."task_id") AND "public"."governance_covers_department"("t"."department_id"))))));
-
-
-
-CREATE POLICY "task_goals_governance_write" ON "public"."task_goals" USING (("public"."current_user_is_governance"() AND (EXISTS ( SELECT 1
-   FROM "public"."tasks" "t"
-  WHERE (("t"."id" = "task_goals"."task_id") AND "public"."governance_covers_department"("t"."department_id")))))) WITH CHECK (("public"."current_user_is_governance"() AND (EXISTS ( SELECT 1
-   FROM "public"."tasks" "t"
-  WHERE (("t"."id" = "task_goals"."task_id") AND "public"."governance_covers_department"("t"."department_id"))))));
-
-
-
 CREATE POLICY "task_goals_read" ON "public"."task_goals" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND (NOT "public"."current_user_is_stakeholder"())));
 
 
@@ -5210,17 +4893,11 @@ CREATE POLICY "tasks_delete" ON "public"."tasks" FOR DELETE USING ((("organizati
 
 
 
-CREATE POLICY "tasks_dept_wall" ON "public"."tasks" AS RESTRICTIVE FOR SELECT USING (("public"."current_user_is_super"() OR ("department_id" = "public"."current_user_department_id"()) OR "public"."user_owns_subtask_on_task"("id") OR "public"."governance_covers_department"("department_id") OR ("assigned_to_id" = "auth"."uid"()) OR ("created_by_id" = "auth"."uid"())));
+CREATE POLICY "tasks_dept_wall" ON "public"."tasks" AS RESTRICTIVE FOR SELECT USING (("public"."current_user_is_super"() OR ("department_id" = "public"."current_user_department_id"()) OR "public"."user_owns_subtask_on_task"("id")));
 
 
 
 CREATE POLICY "tasks_insert_self" ON "public"."tasks" FOR INSERT TO "authenticated" WITH CHECK (("public"."has_permission"('create_tasks'::"public"."user_permission") AND ("created_by_id" = "auth"."uid"()) AND ("organization_id" = "public"."current_user_organization_id"())));
-
-
-
-CREATE POLICY "tasks_pmo_line_manage" ON "public"."tasks" FOR UPDATE USING ((("organization_id" = "public"."current_user_organization_id"()) AND ("public"."current_user_role"() = 'pmo'::"public"."user_role") AND (EXISTS ( SELECT 1
-   FROM "public"."users" "u"
-  WHERE (("u"."id" = "tasks"."assigned_to_id") AND ("u"."admin_id" = "auth"."uid"())))))) WITH CHECK (("organization_id" = "public"."current_user_organization_id"()));
 
 
 
@@ -5245,10 +4922,6 @@ CREATE POLICY "tasks_update" ON "public"."tasks" FOR UPDATE USING ((("organizati
 
 
 ALTER TABLE "public"."transfer_requests" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "transfer_requests_governance_read" ON "public"."transfer_requests" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND "public"."current_user_is_governance"() AND ("deleted_at" IS NULL) AND "public"."governance_covers_user"("requester_id")));
-
 
 
 CREATE POLICY "transfer_requests_insert" ON "public"."transfer_requests" FOR INSERT WITH CHECK ((("organization_id" = "public"."current_user_organization_id"()) AND ("public"."current_user_role"() = ANY (ARRAY['rm'::"public"."user_role", 'arm'::"public"."user_role", 'admin'::"public"."user_role", 'super_admin'::"public"."user_role"]))));
@@ -5293,10 +4966,6 @@ CREATE POLICY "users_admin_manage" ON "public"."users" USING ((("organization_id
 
 
 
-CREATE POLICY "users_pmo_manage" ON "public"."users" USING ((("organization_id" = "public"."current_user_organization_id"()) AND ("public"."current_user_role"() = 'pmo'::"public"."user_role") AND ("admin_id" = "auth"."uid"()) AND ("role" = 'pm'::"public"."user_role"))) WITH CHECK ((("organization_id" = "public"."current_user_organization_id"()) AND ("public"."current_user_role"() = 'pmo'::"public"."user_role") AND ("admin_id" = "auth"."uid"()) AND ("role" = 'pm'::"public"."user_role")));
-
-
-
 CREATE POLICY "users_read" ON "public"."users" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND ("auth"."uid"() IS NOT NULL) AND (("deleted_at" IS NULL) OR ("public"."current_user_role"() = 'super_admin'::"public"."user_role"))));
 
 
@@ -5310,10 +4979,6 @@ CREATE POLICY "users_super_all" ON "public"."users" USING ((("organization_id" =
 
 
 ALTER TABLE "public"."vacation_requests" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "vacation_requests_governance_read" ON "public"."vacation_requests" FOR SELECT USING ((("organization_id" = "public"."current_user_organization_id"()) AND "public"."current_user_is_governance"() AND ("deleted_at" IS NULL) AND "public"."governance_covers_user"("user_id")));
-
 
 
 CREATE POLICY "vacation_requests_insert" ON "public"."vacation_requests" FOR INSERT WITH CHECK ((("organization_id" = "public"."current_user_organization_id"()) AND ("user_id" = "auth"."uid"())));
@@ -5354,162 +5019,10 @@ CREATE POLICY "webhook_subs_super_admin" ON "public"."webhook_subscriptions" USI
 ALTER TABLE "public"."webhook_subscriptions" ENABLE ROW LEVEL SECURITY;
 
 
-
-
-ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
-
-
 GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -5616,12 +5129,6 @@ GRANT ALL ON FUNCTION "public"."current_user_domain_ids"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."current_user_is_governance"() TO "anon";
-GRANT ALL ON FUNCTION "public"."current_user_is_governance"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."current_user_is_governance"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."current_user_is_manager"() TO "anon";
 GRANT ALL ON FUNCTION "public"."current_user_is_manager"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."current_user_is_manager"() TO "service_role";
@@ -5686,18 +5193,6 @@ GRANT ALL ON FUNCTION "public"."emit_webhook_event"("p_entity_type" "text", "p_e
 
 
 
-GRANT ALL ON FUNCTION "public"."governance_covers_department"("p_dept" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."governance_covers_department"("p_dept" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."governance_covers_department"("p_dept" "uuid") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."governance_covers_user"("p_user" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."governance_covers_user"("p_user" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."governance_covers_user"("p_user" "uuid") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."has_permission"("perm" "public"."user_permission") TO "anon";
 GRANT ALL ON FUNCTION "public"."has_permission"("perm" "public"."user_permission") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."has_permission"("perm" "public"."user_permission") TO "service_role";
@@ -5732,12 +5227,6 @@ GRANT ALL ON FUNCTION "public"."notify_approval_request"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."notify_subtask_support"() TO "anon";
 GRANT ALL ON FUNCTION "public"."notify_subtask_support"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."notify_subtask_support"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."notify_support_request"() TO "anon";
-GRANT ALL ON FUNCTION "public"."notify_support_request"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."notify_support_request"() TO "service_role";
 
 
 
@@ -5840,21 +5329,6 @@ GRANT ALL ON FUNCTION "public"."tf_user_owns_request"("p_request_id" "uuid") TO 
 GRANT ALL ON FUNCTION "public"."user_owns_subtask_on_task"("p_task_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."user_owns_subtask_on_task"("p_task_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."user_owns_subtask_on_task"("p_task_id" "uuid") TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -6002,12 +5476,6 @@ GRANT ALL ON TABLE "public"."performance_weights" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."pm_department_assignments" TO "anon";
-GRANT ALL ON TABLE "public"."pm_department_assignments" TO "authenticated";
-GRANT ALL ON TABLE "public"."pm_department_assignments" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."sent_emails" TO "anon";
 GRANT ALL ON TABLE "public"."sent_emails" TO "authenticated";
 GRANT ALL ON TABLE "public"."sent_emails" TO "service_role";
@@ -6047,12 +5515,6 @@ GRANT ALL ON TABLE "public"."strategic_goals" TO "service_role";
 GRANT ALL ON TABLE "public"."sub_domains" TO "anon";
 GRANT ALL ON TABLE "public"."sub_domains" TO "authenticated";
 GRANT ALL ON TABLE "public"."sub_domains" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."support_requests" TO "anon";
-GRANT ALL ON TABLE "public"."support_requests" TO "authenticated";
-GRANT ALL ON TABLE "public"."support_requests" TO "service_role";
 
 
 
@@ -6170,12 +5632,6 @@ GRANT ALL ON TABLE "public"."webhook_subscriptions" TO "service_role";
 
 
 
-
-
-
-
-
-
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
@@ -6200,30 +5656,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
