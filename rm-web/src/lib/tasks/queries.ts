@@ -102,13 +102,29 @@ export async function listTasks(filters: TaskFilters, scope: TaskScope): Promise
   }
 
   // Stable secondary sort: due date asc, then priority (critical first).
+  // Sort order:
+  //   1. OPEN tasks (pending / in_progress / blocked) before CLOSED (done / cancelled).
+  //   2. Within open: nearest due date first; no due date sinks to the bottom of open.
+  //   3. Within closed: most-recently-closed first, oldest last.
+  const isClosed = (s: string) => s === 'done' || s === 'cancelled';
   rows.sort((a, b) => {
-    const da = new Date(a.tatDueDate).getTime();
-    const db = new Date(b.tatDueDate).getTime();
-    if (da !== db) return da - db;
-    return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-  });
+    const aClosed = isClosed(a.status);
+    const bClosed = isClosed(b.status);
+    if (aClosed !== bClosed) return aClosed ? 1 : -1; // open bucket first
 
+    if (!aClosed) {
+      // OPEN: by due date ascending; missing due date goes last.
+      const da = a.tatDueDate ? new Date(a.tatDueDate).getTime() : Infinity;
+      const db = b.tatDueDate ? new Date(b.tatDueDate).getTime() : Infinity;
+      if (da !== db) return da - db;
+      return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+    }
+
+    // CLOSED: most recently updated (closed) first.
+    const ua = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const ub = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return ub - ua;
+  });
   return rows;
 }
 
