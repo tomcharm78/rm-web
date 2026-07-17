@@ -15,7 +15,9 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/types/database';
 
-const PUBLIC_PATHS = ['/login', '/auth/callback', '/survey', '/api/public-survey'];
+// /api/provision is guarded by its own PROVISION_SECRET, not by a user session —
+// it is called by internal tools and (later) payment webhooks, which have no login.
+const PUBLIC_PATHS = ['/login', '/auth/callback', '/survey', '/api/public-survey', '/api/provision'];
 const FORCE_CHANGE_PATH = '/force-password-change';
 
 export async function updateSession(request: NextRequest) {
