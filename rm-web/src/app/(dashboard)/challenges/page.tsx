@@ -242,7 +242,8 @@ function ChallengeModal({ domains, ar, editing, onClose, onSaved }: {
     },
     onSuccess: onSaved,
   });
-  const valid = title.trim() && titleAr.trim() && type && domainId;
+  // Only the ACTIVE language's title is required — one field, not two.
+  const valid = (ar ? titleAr.trim() : title.trim()) && type && domainId;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto" onMouseDown={onClose}>
@@ -252,13 +253,26 @@ function ChallengeModal({ domains, ar, editing, onClose, onSaved }: {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
         </div>
         <div className="px-4 py-3 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={LBL}>{ar ? 'العنوان (EN)' : 'Title (EN)'} *</label><input value={title} onChange={(e) => setTitle(e.target.value)} className={IN} /></div>
-            <div><label className={LBL}>{ar ? 'العنوان (AR)' : 'Title (AR)'} *</label><input value={titleAr} onChange={(e) => setTitleAr(e.target.value)} dir="rtl" className={IN} /></div>
+          {/* ONE field — the app knows the language, so it writes to the matching
+              column. Display falls back titleAr || title. */}
+          <div>
+            <label className={LBL}>{ar ? 'العنوان' : 'Title'} *</label>
+            <input
+              value={ar ? titleAr : title}
+              onChange={(e) => (ar ? setTitleAr(e.target.value) : setTitle(e.target.value))}
+              dir={ar ? 'rtl' : 'ltr'}
+              className={IN}
+            />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={LBL}>{ar ? 'الوصف (EN)' : 'Description (EN)'}</label><textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} className={IN} /></div>
-            <div><label className={LBL}>{ar ? 'الوصف (AR)' : 'Description (AR)'}</label><textarea value={descAr} onChange={(e) => setDescAr(e.target.value)} dir="rtl" rows={3} className={IN} /></div>
+          <div>
+            <label className={LBL}>{ar ? 'الوصف' : 'Description'}</label>
+            <textarea
+              value={ar ? descAr : desc}
+              onChange={(e) => (ar ? setDescAr(e.target.value) : setDesc(e.target.value))}
+              dir={ar ? 'rtl' : 'ltr'}
+              rows={3}
+              className={IN}
+            />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div><label className={LBL}>{ar ? 'النوع' : 'Type'} *</label>
