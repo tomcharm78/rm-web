@@ -156,7 +156,14 @@ export async function POST(req: NextRequest) {
         ],
       },
     ],
-    response_format: { type: 'json_object' },
+    // Qwen 3.6 switches between "thinking" and "non-thinking" modes. In thinking
+    // mode it spends its output on reasoning and returns no valid JSON, which
+    // Groq's strict json_object validation rejects with json_validate_failed and
+    // an EMPTY failed_generation. So: turn reasoning off, and stop demanding
+    // strict JSON — the parser below strips fences and tolerates a preamble,
+    // which is the safer posture with a PREVIEW model that can change behaviour
+    // without notice.
+    reasoning_effort: 'none',
     max_tokens: 1024,
     temperature: 0.1, // deterministic enough for OCR
   };
@@ -202,9 +209,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'ai_unexpected_shape' }, { status: 502 });
   }
 
+  // Without strict json_object mode the reply may arrive wrapped in ```json
+  // fences, or with a sentence before it. Pull out the first {...} block rather
+  // than assuming the whole string is JSON.
+  function extractJson(s: string): string {
+    const fenced = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = fenced ? fenced[1] : s;
+    const start = candidate.indexOf('{');
+    const end = candidate.lastIndexOf('}');
+    return start !== -1 && end > start ? candidate.slice(start, end + 1) : candidate.trim();
+  }
+
   let parsed: BusinessCardData;
   try {
-    parsed = JSON.parse(rawContent);
+    parsed = JSON.parse(extractJson(rawContent));
   } catch {
     console.error('[scan-business-card] Model returned non-JSON:', rawContent.slice(0, 500));
     return NextResponse.json({ error: 'ai_returned_non_json', raw: rawContent.slice(0, 500) }, { status: 502 });
