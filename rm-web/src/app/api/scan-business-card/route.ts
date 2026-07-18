@@ -127,7 +127,10 @@ export async function POST(req: NextRequest) {
 
   // 4. Server-side env vars
   const apiKey = process.env.GROQ_API_KEY;
-  const model = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+  // Llama 4 Scout was deprecated by Groq on 17 Jun 2026. qwen3.6-27b is the
+  // vision-capable replacement — but Groq serves it as a PREVIEW model, so it
+  // can be withdrawn at short notice. Override via GROQ_VISION_MODEL if needed.
+  const model = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.6-27b';
   if (!apiKey) {
     console.error('[scan-business-card] GROQ_API_KEY missing');
     return NextResponse.json({ error: 'server_misconfigured' }, { status: 500 });

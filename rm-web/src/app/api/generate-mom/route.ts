@@ -148,7 +148,9 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        // llama 4 scout was deprecated by groq on 17 jun 2026. gpt-oss-120b is
+        // their recommended text replacement.
+        model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },

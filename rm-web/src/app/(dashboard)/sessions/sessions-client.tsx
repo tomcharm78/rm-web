@@ -323,11 +323,17 @@ function SessionRow({
           href={`/sessions/${session.id}`}
           className="font-medium text-slate-900 hover:underline"
         >
-          {language === 'ar' ? session.titleAr || session.title : session.title}
+          {/* Fall back BOTH ways — single-field entry means one column is empty. */}
+          {language === 'ar'
+            ? session.titleAr || session.title
+            : session.title || session.titleAr}
         </Link>
-        <div className="text-xs text-slate-500 mt-0.5" dir={language === 'ar' ? 'ltr' : 'auto'}>
-          {language === 'ar' ? session.title : session.titleAr}
-        </div>
+        {/* secondary line only when the other language actually has text */}
+        {(language === 'ar' ? session.title : session.titleAr) && (
+          <div className="text-xs text-slate-500 mt-0.5" dir={language === 'ar' ? 'ltr' : 'auto'}>
+            {language === 'ar' ? session.title : session.titleAr}
+          </div>
+        )}
       </td>
       <td className="px-4 py-3 align-top hidden lg:table-cell">
         <div className="text-slate-700">{creatorName}</div>

@@ -61,7 +61,8 @@ export function AssignTaskDialog({ session, task, onClose, onAssigned }: Props) 
   const assign = useMutation({
     mutationFn: async () => {
       if (!assigneeId) throw new Error('assignee_required');
-      if (!title.trim() || !titleAr.trim()) throw new Error('title_required');
+      // Either language suffices — the field writes to the column for the user's language.
+      if (!title.trim() && !titleAr.trim()) throw new Error('title_required');
 
       const supabase = createClient();
 
@@ -155,7 +156,7 @@ export function AssignTaskDialog({ session, task, onClose, onAssigned }: Props) 
         change_description: `AI task assigned: "${title.trim()}" → ${
           users.find((u) => u.id === assigneeId)?.name ?? 'user'
         }`,
-        change_description_ar: `تم تعيين مهمة الذكاء الاصطناعي: "${titleAr.trim()}"`,
+        change_description_ar: `تم تعيين مهمة الذكاء الاصطناعي: "${titleAr.trim() || title.trim()}"`,
       });
     },
     onSuccess: () => onAssigned(),
@@ -194,58 +195,34 @@ export function AssignTaskDialog({ session, task, onClose, onAssigned }: Props) 
               : 'Review and edit the task before assigning. A task will be created in the Tasks module linked to this session.'}
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-slate-700">
-                {language === 'ar' ? 'العنوان (EN)' : 'Title (EN)'} <span className="text-red-500">*</span>
-              </label>
-              <Input
-                dir="ltr"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={assign.isPending}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-slate-700">
-                {language === 'ar' ? 'العنوان (AR)' : 'Title (AR)'} <span className="text-red-500">*</span>
-              </label>
-              <Input
-                dir="rtl"
-                value={titleAr}
-                onChange={(e) => setTitleAr(e.target.value)}
-                disabled={assign.isPending}
-              />
-            </div>
+          <div>
+            <label className="text-xs text-slate-700">
+              {language === 'ar' ? 'العنوان' : 'Title'} <span className="text-red-500">*</span>
+            </label>
+            <Input
+              dir={language === 'ar' ? 'rtl' : 'ltr'}
+              value={language === 'ar' ? titleAr : title}
+              onChange={(e) =>
+                language === 'ar' ? setTitleAr(e.target.value) : setTitle(e.target.value)
+              }
+              disabled={assign.isPending}
+            />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-slate-700">
-                {language === 'ar' ? 'الوصف (EN)' : 'Description (EN)'}
-              </label>
-              <textarea
-                dir="ltr"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                disabled={assign.isPending}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-slate-700">
-                {language === 'ar' ? 'الوصف (AR)' : 'Description (AR)'}
-              </label>
-              <textarea
-                dir="rtl"
-                value={descriptionAr}
-                onChange={(e) => setDescriptionAr(e.target.value)}
-                rows={3}
-                disabled={assign.isPending}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1"
-              />
-            </div>
+          <div>
+            <label className="text-xs text-slate-700">
+              {language === 'ar' ? 'الوصف' : 'Description'}
+            </label>
+            <textarea
+              dir={language === 'ar' ? 'rtl' : 'ltr'}
+              value={language === 'ar' ? descriptionAr : description}
+              onChange={(e) =>
+                language === 'ar' ? setDescriptionAr(e.target.value) : setDescription(e.target.value)
+              }
+              rows={3}
+              disabled={assign.isPending}
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

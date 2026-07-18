@@ -204,8 +204,12 @@ export function SessionForm({ mode, session, onClose, onSaved }: Props) {
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!form.title.trim()) errs.title = 'errTitle';
-    if (!form.titleAr.trim()) errs.titleAr = 'errTitleAr';
+    // Only the ACTIVE language's title is required — one field, not two.
+    if (language === 'ar') {
+      if (!form.titleAr.trim()) errs.titleAr = 'errTitleAr';
+    } else {
+      if (!form.title.trim()) errs.title = 'errTitle';
+    }
     if (!form.meetingDate) errs.meetingDate = 'errMeetingDate';
     if (form.meetingType === 'followup' && !form.parentSessionId) {
       errs.parentSessionId = 'errParentRequired';
@@ -274,26 +278,18 @@ export function SessionForm({ mode, session, onClose, onSaved }: Props) {
             onToggle={() => toggle('basic')}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* ONE field — writes to the column matching the user's language. */}
               <Field
-                label={language === 'ar' ? 'العنوان (EN)' : 'Title (EN)'}
+                label={language === 'ar' ? 'العنوان' : 'Title'}
                 required
-                error={errors.title}
+                error={language === 'ar' ? errors.titleAr : errors.title}
               >
                 <Input
-                  dir="ltr"
-                  value={form.title}
-                  onChange={(e) => setField('title', e.target.value)}
-                />
-              </Field>
-              <Field
-                label={language === 'ar' ? 'العنوان (AR)' : 'Title (AR)'}
-                required
-                error={errors.titleAr}
-              >
-                <Input
-                  dir="rtl"
-                  value={form.titleAr}
-                  onChange={(e) => setField('titleAr', e.target.value)}
+                  dir={language === 'ar' ? 'rtl' : 'ltr'}
+                  value={language === 'ar' ? form.titleAr : form.title}
+                  onChange={(e) =>
+                    setField(language === 'ar' ? 'titleAr' : 'title', e.target.value)
+                  }
                 />
               </Field>
               <Field
@@ -308,19 +304,18 @@ export function SessionForm({ mode, session, onClose, onSaved }: Props) {
                   dir="ltr"
                 />
               </Field>
-              <div />
-              <Field label={language === 'ar' ? 'الموقع (EN)' : 'Location (EN)'}>
+              <Field label={language === 'ar' ? 'الموقع' : 'Location'}>
                 <Input
-                  dir="ltr"
-                  value={form.meetingLocation ?? ''}
-                  onChange={(e) => setField('meetingLocation', e.target.value)}
-                />
-              </Field>
-              <Field label={language === 'ar' ? 'الموقع (AR)' : 'Location (AR)'}>
-                <Input
-                  dir="rtl"
-                  value={form.meetingLocationAr ?? ''}
-                  onChange={(e) => setField('meetingLocationAr', e.target.value)}
+                  dir={language === 'ar' ? 'rtl' : 'ltr'}
+                  value={
+                    (language === 'ar' ? form.meetingLocationAr : form.meetingLocation) ?? ''
+                  }
+                  onChange={(e) =>
+                    setField(
+                      language === 'ar' ? 'meetingLocationAr' : 'meetingLocation',
+                      e.target.value
+                    )
+                  }
                 />
               </Field>
             </div>
