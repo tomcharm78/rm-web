@@ -76,8 +76,9 @@ export function TaskEditModal({
 
   const submit = () => {
     setFormError('');
-    if (!title.trim() || !titleAr.trim()) {
-      setFormError(ar ? 'العنوان مطلوب بالعربية والإنجليزية' : 'Title is required in both languages');
+    // Only the ACTIVE language's title is required.
+    if (ar ? !titleAr.trim() : !title.trim()) {
+      setFormError(ar ? 'العنوان مطلوب' : 'Title is required');
       return;
     }
     if (!domainId) {
@@ -107,28 +108,28 @@ export function TaskEditModal({
         </div>
 
         <div className="p-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label>{ar ? 'العنوان (إنجليزي)' : 'Title (EN)'} *</Label>
-              <Input dir="ltr" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1" />
-            </div>
-            <div>
-              <Label>{ar ? 'العنوان (عربي)' : 'Title (AR)'} *</Label>
-              <Input dir="rtl" value={titleAr} onChange={(e) => setTitleAr(e.target.value)} className="mt-1" />
-            </div>
+          {/* ONE field, matching the create form — writes to the column for the
+              user's language. Editing in Arabic edits the Arabic title, which is
+              how a task gradually gains both versions as people work. */}
+          <div>
+            <Label>{ar ? 'العنوان' : 'Title'} *</Label>
+            <Input
+              dir={ar ? 'rtl' : 'ltr'}
+              value={ar ? titleAr : title}
+              onChange={(e) => (ar ? setTitleAr(e.target.value) : setTitle(e.target.value))}
+              className="mt-1"
+            />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label>{ar ? 'الوصف (إنجليزي)' : 'Description (EN)'}</Label>
-              <textarea dir="ltr" rows={2} value={description} onChange={(e) => setDescription(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-            </div>
-            <div>
-              <Label>{ar ? 'الوصف (عربي)' : 'Description (AR)'}</Label>
-              <textarea dir="rtl" rows={2} value={descriptionAr} onChange={(e) => setDescriptionAr(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-            </div>
+          <div>
+            <Label>{ar ? 'الوصف' : 'Description'}</Label>
+            <textarea
+              dir={ar ? 'rtl' : 'ltr'}
+              rows={2}
+              value={ar ? descriptionAr : description}
+              onChange={(e) => (ar ? setDescriptionAr(e.target.value) : setDescription(e.target.value))}
+              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
