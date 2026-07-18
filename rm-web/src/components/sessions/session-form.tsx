@@ -659,6 +659,13 @@ function TypeRadio({
   );
 }
 
+// ONE box while you write; BOTH when the other language already has content.
+//
+// The rule is driven by the data rather than a flag, so it cannot fall out of
+// sync: manual entry fills one column and stays single-box, while accepting an
+// AI-generated MoM fills both columns and the second box appears — which matters,
+// because the AI writes Arabic minutes that a human ought to read before they
+// become an official record.
 function ContentField({
   labelEn,
   labelAr,
@@ -674,40 +681,70 @@ function ContentField({
   onChangeEn: (v: string) => void;
   onChangeAr: (v: string) => void;
 }) {
+  const { language } = useLanguage();
+  const ar = language === 'ar';
+
+  const boxEn = (
+    <textarea
+      dir="ltr"
+      placeholder={labelEn}
+      value={valueEn}
+      onChange={(e) => onChangeEn(e.target.value)}
+      rows={4}
+      className={cn(
+        'flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm',
+        'placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1'
+      )}
+    />
+  );
+  const boxAr = (
+    <textarea
+      dir="rtl"
+      placeholder={labelAr}
+      value={valueAr}
+      onChange={(e) => onChangeAr(e.target.value)}
+      rows={4}
+      className={cn(
+        'flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-arabic',
+        'placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1'
+      )}
+    />
+  );
+
+  // Does the OTHER language already hold something worth reviewing?
+  const otherHasContent = (ar ? valueEn : valueAr).trim() !== '';
+
   return (
     <div className="mb-3">
       <div className="text-xs font-medium text-slate-700 mb-1">
-        {labelEn} <span className="text-slate-400">/ {labelAr}</span>
+        {ar ? labelAr : labelEn}
+        {otherHasContent && (
+          <span className="text-slate-400"> / {ar ? labelEn : labelAr}</span>
+        )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <textarea
-          dir="ltr"
-          placeholder={labelEn}
-          value={valueEn}
-          onChange={(e) => onChangeEn(e.target.value)}
-          rows={4}
-          className={cn(
-            'flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm',
-            'placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1'
-          )}
-        />
-        <textarea
-          dir="rtl"
-          placeholder={labelAr}
-          value={valueAr}
-          onChange={(e) => onChangeAr(e.target.value)}
-          rows={4}
-          className={cn(
-            'flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-arabic',
-            'placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1'
-          )}
-        />
-      </div>
+      {otherHasContent ? (
+        // Both present — show them side by side, the reader's language first.
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {ar ? boxAr : boxEn}
+          {ar ? boxEn : boxAr}
+        </div>
+      ) : (
+        ar ? boxAr : boxEn
+      )}
     </div>
   );
 }
 
+// Date -> the "YYYY-MM-DDTHH:mm" string that <input type="datetime-local"> needs.
+// Uses LOCAL time, not UTC — toISOString() would shift the displayed time by the
+// timezone offset, so a 10:00 Riyadh meeting would show as 07:00.
 function toLocalDatetimeValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return (
+    d.getFullYear() +
+    '-' + pad(d.getMonth() + 1) +
+    '-' + pad(d.getDate()) +
+    'T' + pad(d.getHours()) +
+    ':' + pad(d.getMinutes())
+  );
 }
