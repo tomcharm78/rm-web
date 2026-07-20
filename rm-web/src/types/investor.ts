@@ -98,6 +98,7 @@ export const INVESTOR_DOMAINS = [
   'medtech',
   'health_insurance',
   'wellness_tourism',
+  'hajj_umrah',
   'other',
 ] as const;
 
@@ -111,6 +112,7 @@ export const DOMAIN_LABELS: Record<InvestorDomain, { en: string; ar: string }> =
   medtech: { en: 'Medical Devices', ar: 'الأجهزة الطبية' },
   health_insurance: { en: 'Health Insurance', ar: 'التأمين الصحي' },
   wellness_tourism: { en: 'Wellness Tourism', ar: 'السياحة الصحية' },
+  hajj_umrah: { en: 'Hajj & Umrah', ar: 'الحج والعمرة' },
   other: { en: 'Other', ar: 'أخرى' },
 };
 
