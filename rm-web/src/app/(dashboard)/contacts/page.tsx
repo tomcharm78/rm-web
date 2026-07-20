@@ -2,6 +2,10 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { Upload, Download } from 'lucide-react';
+import { ContactImportModal } from '@/components/contacts/import/contact-import-modal';
+import { exportDirectoryToExcel } from '@/lib/contacts/export';
+import { findDuplicateIds } from '@/lib/contacts/import/import-queries';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Contact as ContactIcon, Plus, Loader2, X, Pencil, Trash2, Mail, Phone, Building2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -45,6 +49,7 @@ export default function ContactsPage() {
   const [fType, setFType] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const dirQ = useQuery({ queryKey: ['contacts-directory'], queryFn: listDirectory });
   const entries = dirQ.data ?? [];
@@ -66,6 +71,12 @@ export default function ContactsPage() {
     });
   }, [entries, search, fType]);
 
+  // Duplicates are computed from the data on screen rather than stored as a
+  // flag, so the badge stays truthful and self-heals when one of a pair is
+  // deleted. Key is email + phone, BOTH required — a shared office number or a
+  // generic inbox is not enough on its own to call two people the same person.
+  const duplicateIds = useMemo(() => findDuplicateIds(entries), [entries]);
+
   if (!user) return null;
 
   return (
@@ -76,9 +87,23 @@ export default function ContactsPage() {
           <h1 className="text-xl font-semibold">{ar ? 'دليل جهات الاتصال' : 'Contacts Directory'}</h1>
           <span className="text-sm text-slate-400">({filtered.length})</span>
         </div>
-        <Button onClick={() => setAddOpen(true)} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-          <Plus className="h-4 w-4" />{ar ? 'إضافة جهة اتصال' : 'Add contact'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportDirectoryToExcel(filtered, ar)}
+            disabled={filtered.length === 0}
+            className="gap-2"
+            title={ar ? 'يصدّر ما هو معروض حاليًا' : 'Exports what is currently shown'}
+          >
+            <Download className="h-4 w-4" />{ar ? 'تصدير Excel' : 'Export Excel'}
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2">
+            <Upload className="h-4 w-4" />{ar ? 'استيراد' : 'Import'}
+          </Button>
+          <Button onClick={() => setAddOpen(true)} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+            <Plus className="h-4 w-4" />{ar ? 'إضافة جهة اتصال' : 'Add contact'}
+          </Button>
+        </div>
       </div>
       <p className="text-sm text-slate-500 mb-5">{ar ? 'دليل موحّد للأشخاص — جهات داخلية وخارجية وممثلو المستثمرين.' : 'A unified directory of people — internal, external, and investor representatives.'}</p>
 
@@ -114,7 +139,17 @@ export default function ContactsPage() {
             )}
             {filtered.map((e) => (
               <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium text-slate-800">{ar ? e.nameAr || e.name : e.name || (ar ? '(بدون اسم)' : '(no name)')}</td>
+                <td className="px-4 py-3 font-medium text-slate-800">
+                  {ar ? e.nameAr || e.name : e.name || (ar ? '(بدون اسم)' : '(no name)')}
+                  {duplicateIds.has(e.id) && (
+                    <span
+                      className="ms-2 rounded px-1.5 py-0.5 text-[10px] bg-amber-100 text-amber-700 align-middle"
+                      title={ar ? 'نفس البريد والهاتف لجهة أخرى' : 'Same email and phone as another entry'}
+                    >
+                      {ar ? 'مكرر' : 'Duplicate'}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3"><span className={'rounded px-2 py-0.5 text-xs ' + typeColor(e.type)}>{typeLabel(e.type, ar)}</span></td>
                 <td className="px-4 py-3 text-slate-600">
                   {(e.role || e.organization)
@@ -157,6 +192,12 @@ export default function ContactsPage() {
 
       {addOpen && (
         <ContactModal ar={ar} editing={null} onClose={() => setAddOpen(false)} onSaved={() => { setAddOpen(false); refresh(); }} />
+      )}
+      {importOpen && (
+        <ContactImportModal
+          onClose={() => setImportOpen(false)}
+          onImported={refresh}
+        />
       )}
       {editing && (
         <ContactModal ar={ar} editing={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />

@@ -107,7 +107,7 @@ export function InvestorImportModal({ onClose, onImported }: { onClose: () => vo
               <button onClick={downloadImportTemplate} className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700">
                 <Download className="h-4 w-4" />{ar ? 'تنزيل القالب' : 'Download template'}
               </button>
-              <span className="text-xs text-slate-400">{ar ? 'الحد الأدنى: الشركة، الممثل، البريد' : 'Minimum: Company, Representative, Email'}</span>
+              <span className="text-xs text-slate-400">{ar ? 'المطلوب فقط: اسم الشركة أو الممثل' : 'Only needed: a company or representative name'}</span>
             </div>
           </div>
         )}
