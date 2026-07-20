@@ -29,12 +29,20 @@ export async function bulkCreateInvestors(inputs: InvestorFormInput[]): Promise<
   const orgId = (appUser as any)?.organization_id;
   if (!orgId) throw new Error('no_org');
 
-  // fetch existing investor emails up front (one query) to skip duplicates
+// Duplicate = the same email AT THE SAME COMPANY. The same person at a
+  // different company is a legitimate new record — people change employers, and
+  // one person can represent two entities. So the key is email+company, not
+  // email alone.
   const { data: existing } = await supabase
-    .from('investors').select('email').is('deleted_at', null);
-  const existingEmails = new Set(
+    .from('investors').select('email, company_name').is('deleted_at', null);
+  const dupKey = (email: string, company: string) =>
+    `${email.trim().toLowerCase()}|${company.trim().toLowerCase()}`;
+  const existingKeys = new Set(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (existing ?? []).map((r: any) => String(r.email ?? '').trim().toLowerCase()).filter(Boolean)
+    (existing ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((r: any) => dupKey(String(r.email ?? ''), String(r.company_name ?? '')))
+      .filter((k) => k !== '|')
   );
 
   const results: BulkRowResult[] = [];
@@ -48,7 +56,8 @@ export async function bulkCreateInvestors(inputs: InvestorFormInput[]): Promise<
     const email = input.email.trim().toLowerCase();
     const company = input.companyName;
 
-    if (email && (existingEmails.has(email) || seenInBatch.has(email))) {
+    const key = dupKey(email, company);
+    if (email && company && (existingKeys.has(key) || seenInBatch.has(key))) {
       skippedDuplicate++;
       results.push({ rowIndex: i, email, company, status: 'skipped_duplicate' });
       continue;
@@ -59,7 +68,7 @@ export async function bulkCreateInvestors(inputs: InvestorFormInput[]): Promise<
       const { error } = await supabase.from('investors').insert(insertRow);
       if (error) throw new Error(error.message);
       created++;
-      if (email) seenInBatch.add(email);
+      if (email && company) seenInBatch.add(key);
       results.push({ rowIndex: i, email, company, status: 'created' });
     } catch (e) {
       failed++;

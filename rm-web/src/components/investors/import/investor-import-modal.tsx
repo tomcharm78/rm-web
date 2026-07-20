@@ -168,8 +168,8 @@ export function InvestorImportModal({ onClose, onImported }: { onClose: () => vo
             {built.invalid > 0 && (
               <p className="text-xs text-amber-600 mb-3">
                 {ar
-                  ? `${built.invalid} صف ينقصه حقل إلزامي (الشركة/الممثل/البريد) وسيتم تخطّيه.`
-                  : `${built.invalid} row(s) miss a required field (company/representative/email) and will be skipped.`}
+                  ? `${built.invalid} صف بلا اسم شركة أو ممثل — يبدو أنها صفوف فارغة وسيتم تخطّيها.`
+                  : `${built.invalid} row(s) have no company or representative name — these look like blank rows and will be skipped.`}
               </p>
             )}
             <p className="text-xs text-slate-500 mb-2">{ar ? 'عيّنة أول 5 صفوف:' : 'Preview of first 5 rows:'}</p>
@@ -194,7 +194,7 @@ export function InvestorImportModal({ onClose, onImported }: { onClose: () => vo
               </table>
             </div>
             <p className="text-[11px] text-slate-400 mt-2">
-              {ar ? 'يُوسَم المستوردون بعلامة "تحميل" لإكمال بياناتهم لاحقًا. تُتخطّى التكرارات حسب البريد.' : 'Imported records are tagged “Upload” to complete later. Duplicate emails are skipped.'}
+              {ar ? 'يُوسَم المستوردون بعلامة "تحميل" لإكمال بياناتهم لاحقًا. يُعدّ التكرار فقط عند تطابق البريد واسم الشركة معًا.' : 'Imported records are tagged “Upload” to complete later. A row counts as a duplicate only if BOTH the email and the company name already exist.'}
             </p>
 
             <div className="flex justify-between gap-2 mt-4">

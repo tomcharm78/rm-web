@@ -19,9 +19,14 @@ export type ImportFieldDef = {
 };
 
 export const IMPORT_FIELDS: ImportFieldDef[] = [
-  { key: 'companyName',             labelEn: 'Company Name (EN)',        labelAr: 'اسم الشركة',              required: true },
-  { key: 'representativeName',      labelEn: 'Representative Name (EN)', labelAr: 'اسم الممثل',              required: true },
-  { key: 'email',                   labelEn: 'Email',                    labelAr: 'البريد الإلكتروني',       required: true },
+  // Import is deliberately permissive: real spreadsheets arrive incomplete, and
+  // a half-filled record you can finish later beats a row you lost. Imported
+  // rows carry the 'upload' tag so the gaps are visible. The ONLY floor is that
+  // a row must name someone (see rowToInput) — a row with no name at all is not
+  // a record, it is a blank line at the bottom of the sheet.
+  { key: 'companyName',             labelEn: 'Company Name (EN)',        labelAr: 'اسم الشركة',              required: false },
+  { key: 'representativeName',      labelEn: 'Representative Name (EN)', labelAr: 'اسم الممثل',              required: false },
+  { key: 'email',                   labelEn: 'Email',                    labelAr: 'البريد الإلكتروني',       required: false },
   { key: 'companyNameAr',           labelEn: 'Company Name (AR)',        labelAr: 'اسم الشركة (عربي)',        required: false },
   { key: 'representativeNameAr',    labelEn: 'Representative Name (AR)', labelAr: 'اسم الممثل (عربي)',        required: false },
   { key: 'domainType',              labelEn: 'Domain',                   labelAr: 'القطاع',                  required: false },
@@ -135,14 +140,19 @@ export function buildInvestorInput(
     if (val) v[fieldKey] = val;
   }
 
-  // required minimum: a company name in EITHER language, a representative
-  // name in EITHER language, and an email. Missing-language fields default
-  // to empty and get completed later (record is tagged 'upload').
-  const missing: string[] = [];
-  if (!v.companyName && !v.companyNameAr) missing.push('Company Name (EN or AR)');
-  if (!v.representativeName && !v.representativeNameAr) missing.push('Representative Name (EN or AR)');
-  if (!v.email) missing.push('Email');
-  if (missing.length > 0) return { ok: false, missing };
+// Import is deliberately permissive — real spreadsheets arrive incomplete, and
+  // a half-filled record you can finish later beats a row you lost. Imported
+  // records are tagged 'upload' so the gaps stay visible.
+  //
+  // The ONE floor: the row must NAME someone — a company or a representative,
+  // in either language. A row with no name at all is not a record; it is the
+  // blank line at the bottom of the sheet, and importing those would create
+  // phantom investors.
+  const hasAnyName =
+    !!(v.companyName || v.companyNameAr || v.representativeName || v.representativeNameAr);
+  if (!hasAnyName) {
+    return { ok: false, missing: ['Company or Representative Name'] };
+  }
 
   const input: InvestorFormInput = {
     companyName: v.companyName ?? '',
