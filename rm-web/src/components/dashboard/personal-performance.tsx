@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLanguage } from '@/providers/language-provider';
+import { CalculationMethod } from '@/components/dashboard/calculation-method';
 import { PerfGauge } from '@/components/dashboard/perf-gauge';
 import {
   getMonthlyPerformance, getYearlyPerformance, currentYearMonth, recentYearMonths,
@@ -129,12 +130,14 @@ export function PersonalPerformance({ userId, userName }: { userId: string; user
               <Bar label={ar ? 'الالتزام بالوقت' : 'Timeliness'} hint={ar ? 'الالتزام والسرعة' : 'on-time & speed'} value={m.timelinessScore} color={m.timelinessScore < 60 ? '#eda100' : '#199e70'} />
               <Bar label={ar ? 'النتائج' : 'Outcomes'} hint={ar ? 'التحديات والأثر' : 'challenges & impact'} value={m.outcomesScore} color={m.outcomesScore < 60 ? '#eda100' : '#199e70'} />
 
-              {m.outcomesBasis === 'tasks_fallback' && (
+              {m.outcomesBasis === 'tasks_only' && (
                 <p style={{ fontSize: 11, color: TM, marginTop: -4 }}>
-                  {ar ? 'النتائج محسوبة من المهام المنجزة (لا توجد تحديات هذا الشهر).' : 'Outcomes based on closed tasks (no challenges this month).'}
+                  {ar ? 'لا توجد تحديات هذا الشهر — هذه النتيجة من مهامك المنجزة.' : 'No challenges this month — this score comes from your closed tasks.'}
                 </p>
               )}
 
+              <CalculationMethod m={m} ar={ar} />
+              
               <div style={{ marginTop: 14, background: 'var(--bg-warning)', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: 'var(--text-warning)' }}>
                 {coachingNote(m, ar)}
               </div>

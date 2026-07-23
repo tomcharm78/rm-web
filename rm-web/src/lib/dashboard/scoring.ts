@@ -48,15 +48,21 @@ export function computeTimelinessScore(opts: {
   return Math.round(onTimePart * 0.65 + speedPart * 0.35);
 }
 
-// Outcomes: challenges resolved weighted heaviest; if no challenge data,
-// substitute closed tasks at 12 tasks == 1 challenge-equivalent.
+// Outcomes: challenges and closed tasks BOTH contribute, at 12 tasks == 1
+// challenge-equivalent (challenges are hard-won, so they carry more weight).
 // survey_avg (1-5) folds in when present.
 export function computeOutcomesScore(opts: {
   challengesResolved: number; tasksClosed: number; surveyAvg: number | null;
-}): { score: number; basis: 'challenges' | 'tasks_fallback' | 'blend' } {
+}): { score: number; basis: 'challenges' | 'tasks_only' | 'blend' } {
   // challenge-equivalents: real challenges + fallback from tasks
   const fromTasks = opts.tasksClosed / 12;
-  const equivalents = opts.challengesResolved + (opts.challengesResolved === 0 ? fromTasks : 0);
+  // Tasks always contribute, added to challenges rather than replacing them.
+  // Previously tasks counted ONLY when challengesResolved was 0, so resolving a
+  // single challenge zeroed out every closed task — one challenge plus thirty
+  // tasks scored the same as one challenge and nothing. That cliff penalised
+  // the people doing the most, and could LOWER a score the moment someone
+  // resolved their first challenge.
+  const equivalents = opts.challengesResolved + fromTasks;
 
   // map equivalents to 0..100: 0 -> 0, 1 -> 60, 3+ -> 100 (challenges are hard-won)
   let challengeScore: number;
@@ -71,7 +77,7 @@ export function computeOutcomesScore(opts: {
   }
   return {
     score: challengeScore,
-    basis: opts.challengesResolved === 0 ? 'tasks_fallback' : 'challenges',
+    basis: opts.challengesResolved === 0 ? 'tasks_only' : 'challenges',
   };
 }
 
@@ -121,7 +127,7 @@ export type PerfResult = {
   volumeScore: number;
   timelinessScore: number;
   outcomesScore: number;
-  outcomesBasis: 'challenges' | 'tasks_fallback' | 'blend';
+  outcomesBasis: 'challenges' | 'tasks_only' | 'blend';
   composite: number;
   tier: PerfTier;
   weights: Weights;
