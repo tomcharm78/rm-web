@@ -2,6 +2,7 @@
 import { PersonalPerformance } from '@/components/dashboard/personal-performance';
 import { DeptPerformanceView } from '@/components/dashboard/dept-performance';
 import { VacationCountdown } from '@/components/vacations/vacation-countdown';
+import { TodoPopup } from '@/components/dashboard/todo-popup';
 import { TeamLeaveGantt } from '@/components/vacations/team-leave-gantt';
 import { AlignmentIndexes } from '@/components/dashboard/alignment-indexes';
 import { PendingApprovalsTile } from '@/components/dashboard/pending-approvals-tile';
@@ -74,23 +75,26 @@ export default function DashboardHomePage() {
               )}
             </div>
           </div>
-          {isSuper && !editing && (
-            <button type="button" onClick={startEdit} className="text-slate-400 hover:text-slate-700">
-              <Pencil className="h-4 w-4" />
-            </button>
-          )}
-          {isSuper && editing && (
-            <div className="flex gap-1">
-              <button type="button" onClick={() => saveDep.mutate()}
-                disabled={saveDep.isPending || !depName.trim() || !depNameAr.trim()}
-                className="rounded bg-indigo-600 text-white p-1.5 disabled:opacity-50">
-                <Check className="h-4 w-4" />
+          <div className="flex items-center gap-2">
+            <TodoPopup />
+            {isSuper && !editing && (
+              <button type="button" onClick={startEdit} className="text-slate-400 hover:text-slate-700">
+                <Pencil className="h-4 w-4" />
               </button>
-              <button type="button" onClick={() => setEditing(false)} className="rounded border border-slate-200 p-1.5">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
+            )}
+            {isSuper && editing && (
+              <div className="flex gap-1">
+                <button type="button" onClick={() => saveDep.mutate()}
+                  disabled={saveDep.isPending || !depName.trim() || !depNameAr.trim()}
+                  className="rounded bg-indigo-600 text-white p-1.5 disabled:opacity-50">
+                  <Check className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => setEditing(false)} className="rounded border border-slate-200 p-1.5">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
