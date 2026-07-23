@@ -21,6 +21,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getMyModulesControl } from '@/lib/modules/queries';
 import { useState, useMemo } from 'react';
+import { TopProgressBar } from '@/components/dashboard/top-progress-bar';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -127,6 +128,7 @@ export function DashboardShell({
 
   return (
     <div className="min-h-screen bg-slate-50" dir={isRTL ? 'rtl' : 'ltr'}>
+      <TopProgressBar />
       {/* Mobile drawer overlay */}
       {mobileOpen && (
         <div
