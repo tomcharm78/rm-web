@@ -144,3 +144,38 @@ export async function archiveChallenge(id: string): Promise<void> {
     .eq('id', id);
   if (error) throw new Error(error.message);
 }
+// Preview what a delete would remove, so the confirmation can name real numbers
+// instead of saying "and related tasks". A generic warning gets clicked through.
+export async function previewChallengeDeletion(challengeId: string): Promise<{
+  openTasks: number; openTasksOnOthers: number; closedTasks: number;
+}> {
+  const supabase = createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  const me = auth.user?.id;
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('id, status, assigned_to_id')
+    .eq('source_challenge_id', challengeId)
+    .is('deleted_at', null);
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const isClosed = (s: string) => s === 'done' || s === 'cancelled';
+  const open = rows.filter((r) => !isClosed(r.status as string));
+  return {
+    openTasks: open.length,
+    openTasksOnOthers: open.filter((r) => r.assigned_to_id && r.assigned_to_id !== me).length,
+    closedTasks: rows.filter((r) => isClosed(r.status as string)).length,
+  };
+}
+
+// Soft-deletes the challenge and its OPEN tasks. The super-admin check lives in
+// the function, not here — challenges_update already permits managers, so a
+// UI-only check would be bypassable with the anon key.
+export async function softDeleteChallenge(challengeId: string): Promise<number> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('soft_delete_challenge', {
+    p_challenge_id: challengeId,
+  });
+  if (error) throw new Error(error.message);
+  return (data as { tasksDeleted: number })?.tasksDeleted ?? 0;
+}

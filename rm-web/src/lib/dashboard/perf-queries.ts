@@ -116,6 +116,7 @@ export async function getMonthlyPerformance(userId: string, yearMonth: string): 
   const { data: myChallenges } = await supabase
     .from('challenges')
     .select('id, status, closed_by_id, assigned_to_id, closed_at')
+    .is('deleted_at', null)
     .or(`assigned_to_id.eq.${userId},closed_by_id.eq.${userId}`)
     .in('status', ['resolved', 'closed'])
     .gte('closed_at', start)
