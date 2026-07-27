@@ -186,6 +186,9 @@ export function MemberFormModal({ member, onClose, onSaved }: Props) {
           service_role_not_configured: ar
             ? 'مفتاح الخدمة غير مهيأ'
             : 'Server key not configured',
+          seat_limit_reached: ar
+            ? `لقد بلغتم الحد الأقصى للمقاعد في باقتكم${data?.maxSeats ? ` (${data.maxSeats})` : ''}. يلزم ترقية الباقة لإضافة مستخدمين.`
+            : `You've reached your plan's seat limit${data?.maxSeats ? ` (${data.maxSeats})` : ''}. Upgrade your plan to add more users.`,
         };
         const msg = map[data?.error] ?? data?.message ?? data?.error ?? 'create_failed';
         throw new Error(msg);

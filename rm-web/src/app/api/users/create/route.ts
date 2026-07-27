@@ -124,6 +124,32 @@ export async function POST(req: NextRequest) {
       : (body.permissions ?? []).filter((p) =>
           (ALL_PERMISSIONS as readonly string[]).includes(p)
         );
+        // SEAT LIMIT — refuse before creating anything, so a full tenant needs no
+  // rollback. max_seats NULL means unlimited (internal/ministry orgs). The count
+  // is active, non-deleted users only: soft-deleted ghosts must not consume a
+  // paid seat.
+  {
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('max_seats')
+      .eq('id', caller.organization_id)
+      .single();
+    const cap = org?.max_seats ?? null;
+    if (cap !== null) {
+      const { count } = await supabase
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', caller.organization_id)
+        .eq('is_active', true)
+        .is('deleted_at', null);
+      if ((count ?? 0) >= cap) {
+        return NextResponse.json(
+          { error: 'seat_limit_reached', maxSeats: cap },
+          { status: 409 }
+        );
+      }
+    }
+  }
 
   const domainIds = Array.isArray(body.domainIds) ? body.domainIds : [];
   const isActive = body.isActive ?? true;
