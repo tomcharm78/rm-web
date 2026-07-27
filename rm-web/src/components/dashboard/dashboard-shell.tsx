@@ -19,7 +19,7 @@
 // users without breaking when they click.
 
 import { useQuery } from '@tanstack/react-query';
-import { getMyModulesControl } from '@/lib/modules/queries';
+import { getMyModulesControl, isModuleEnabled } from '@/lib/modules/queries';
 import { useState, useMemo } from 'react';
 import { TopProgressBar } from '@/components/dashboard/top-progress-bar';
 import { usePathname, useRouter } from 'next/navigation';
@@ -104,7 +104,7 @@ export function DashboardShell({
   const visibleNav = useMemo(
     () => NAV_ITEMS.filter((item) =>
       (!item.roles || item.roles.includes(user.role)) &&
-      (!item.module || moduleSettings[item.module] === true)
+      (!item.module || isModuleEnabled(moduleSettings, item.module, modulesCtl.data?.accessTier ?? 'full'))
     ),
     [user.role, moduleSettings]
   );
