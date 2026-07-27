@@ -14,6 +14,8 @@ import {
   Settings as SettingsIcon, LifeBuoy, Palette, BookOpen, ToggleLeft,
   Loader2, Check, Paperclip,
 } from 'lucide-react';
+import { PricingSection } from '@/components/settings/pricing-section';
+import { Calculator } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { getMyModulesControl, setModuleEnabled } from '@/lib/modules/queries';
@@ -24,7 +26,7 @@ import {
 import { SupportForm } from '@/components/settings/support-form';
 import { HowToUse } from '@/components/settings/how-to-use';
 
-type Tab = 'support' | 'modules' | 'theme' | 'docs';
+type Tab = 'support' | 'modules' | 'pricing' | 'theme' | 'docs';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -40,6 +42,7 @@ export default function SettingsPage() {
   const TABS: { id: Tab; icon: typeof LifeBuoy; en: string; ar: string; ownerOnly?: boolean }[] = [
     { id: 'support', icon: LifeBuoy, en: 'Tech support', ar: 'الدعم الفني' },
     { id: 'modules', icon: ToggleLeft, en: 'Modules', ar: 'الوحدات', ownerOnly: true },
+    { id: 'pricing', icon: Calculator, en: 'Pricing', ar: 'الأسعار', ownerOnly: true },
     { id: 'theme', icon: Palette, en: 'Theme', ar: 'المظهر' },
     { id: 'docs', icon: BookOpen, en: 'How to use', ar: 'كيفية الاستخدام' },
   ];
@@ -81,6 +84,7 @@ export default function SettingsPage() {
 
       {tab === 'support' && <SupportSection isOwner={isOwner} ar={ar} />}
       {tab === 'modules' && isOwner && <ModulesSection ar={ar} qc={qc} />}
+      {tab === 'pricing' && isOwner && <PricingSection ar={ar} />}
       {tab === 'theme' && <ThemeSection ar={ar} />}
       {tab === 'docs' && <HowToUse ar={ar} />}
     </div>
