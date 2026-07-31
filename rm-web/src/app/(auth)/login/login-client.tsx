@@ -33,7 +33,11 @@ export function LoginPageClient({ hasSuperAdmin }: { hasSuperAdmin: boolean }) {
     isLoading,
   } = useAuth();
 
-  const [mode, setMode] = useState<Mode>(hasSuperAdmin ? 'login' : 'bootstrap');
+  // Bootstrap (self-service "claim super-admin") is permanently disabled — the
+  // first super_admin is created by the provisioning engine, so there is no
+  // legitimate path where a live tenant has none. Leaving it reachable would let
+  // whoever hits a fresh tenant's URL claim super-admin. Login is the only mode.
+  const [mode, setMode] = useState<Mode>('login');
 
   useEffect(() => {
     if (user) router.replace('/');
